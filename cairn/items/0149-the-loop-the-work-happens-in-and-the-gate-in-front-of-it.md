@@ -42,3 +42,7 @@ the cycle is seconds.
 ## 2026-09-13
 
 The criterion about 'no checks configured' was ticked and was false. land asked gh for the checks immediately after the push, was told there were none because none had been queued yet, said so and merged; the pull request went green about forty seconds later. It now waits up to 60s for a check to appear and treats a genuine absence as a failure rather than a pass. Separately, gh pr merge --delete-branch tries to check out the base branch locally to clean up, which cannot work when main is held by the main worktree - which is the arrangement the whole loop is built on.
+
+## 2026-09-13
+
+CI told us something on its first green run on main: actions/checkout@v4 targets Node 20, which the runners now force onto Node 24 and will eventually stop forcing. Bumped to v5. This is the kind of rot house rule 4's fifteen-year claim is about - it just lives in the CI rather than in the program, and CI is the only thing that was ever going to notice.
