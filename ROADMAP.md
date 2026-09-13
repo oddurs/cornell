@@ -31,12 +31,15 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 
 ### planned
 
-- [ ] [`0023`](https://github.com/oddurs/cornell/blob/main/cairn/items/0023-film-an-array-of-spectral-accumulators-and-no-colour-anywhere.md) Film: an array of spectral accumulators, and no colour anywhere <sup>optics · p2 · camera</sup>
 - [ ] [`0024`](https://github.com/oddurs/cornell/blob/main/cairn/items/0024-a-ppm-is-a-short-header-and-some-bytes-write-it-yourself.md) A PPM is a short header and some bytes; write it yourself <sup>instrument · p2 · instrument</sup>
 - [ ] [`0025`](https://github.com/oddurs/cornell/blob/main/cairn/items/0025-apps-main-cpp-the-dispatcher-and-the-list-of-witnesses.md) apps/main.cpp: the dispatcher, and the list of witnesses <sup>instrument · p2 · instrument</sup>
 - [ ] [`0026`](https://github.com/oddurs/cornell/blob/main/cairn/items/0026-the-makefile-the-warnings-and-the-fifteen-year-guarantee.md) The Makefile, the warnings, and the fifteen-year guarantee <sup>chore · p2 · build</sup>
 - [ ] [`0027`](https://github.com/oddurs/cornell/blob/main/cairn/items/0027-readme-the-argument-before-there-is-anything-to-show.md) README: the argument, before there is anything to show <sup>prose · p2 · prose</sup>
 - [ ] [`0028`](https://github.com/oddurs/cornell/blob/main/cairn/items/0028-admit-at-the-top-of-transport-hpp-that-this-is-geometric-optics.md) Admit, at the top of transport.hpp, that this is geometric optics <sup>prose · p2 · prose · admission</sup>
+
+### in progress
+
+- [ ] [`0023`](https://github.com/oddurs/cornell/blob/main/cairn/items/0023-film-an-array-of-spectral-accumulators-and-no-colour-anywhere.md) Film: an array of spectral accumulators, and no colour anywhere <sup>optics · p2 · camera</sup>
 
 ### done
 
