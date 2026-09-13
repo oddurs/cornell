@@ -208,8 +208,66 @@
 // `Reflectance` multiplies a `Radiance` component by component: a diagonal
 // matrix, where fluorescence would need a full one.
 //
-// It also assumes light travels unchanged between surfaces, which is the
-// subject of item 0041 and the next thing this file has to admit.
+// ── And it assumes the room is empty ─────────────────────────────────────
+//
+// The largest assumption in the equation is the one easiest to miss, because
+// it is not a term that was dropped — it is a term that was never written.
+// `L(x, wi)` is the radiance arriving at x from direction wi, and the
+// implementation obtains it by casting a ray and asking what it hit. That
+// step contains the whole of the claim:
+//
+//      LIGHT TRAVELS IN A STRAIGHT LINE BETWEEN TWO SURFACES AND ARRIVES
+//      WITH EXACTLY THE RADIANCE IT LEFT WITH.
+//
+// Which is to say the space between surfaces is a vacuum. It does not absorb,
+// it does not scatter, and it does not glow. `Ray::at(t)` is a straight line,
+// `Scene::intersect` returns the first surface, and nothing at all happens in
+// between — the distance the light travelled does not appear anywhere in the
+// arithmetic, which is exactly what "unchanged" means.
+//
+// No photograph was ever taken in a vacuum. Air scatters; the Cornell box was
+// photographed in a room with air in it. The assumption is extremely good
+// over two metres and it is not free, and here is what it costs, by name:
+//
+//      Fog, haze and mist. A distant hill is pale not because it is painted
+//      pale but because air between it and you has scattered sunlight into
+//      your line of sight. This model renders it at full contrast at any
+//      distance.
+//
+//      Smoke, steam and dust. Anything whose whole appearance is what it does
+//      to light passing through it rather than what it does at a boundary.
+//
+//      The shaft of light through a window, and every searchlight, and the
+//      beam of a torch in fog. A beam is only visible side-on because
+//      something in the air is scattering it towards you. In here a beam of
+//      light is invisible unless it lands on something, which is the correct
+//      answer for a vacuum and is why an image from this renderer never has
+//      one.
+//
+//      The colour of deep water, which is not a surface tint. Water absorbs
+//      red light over metres, so a thing is blue-green at ten metres and
+//      grey-blue at forty, and the colour is a property of the distance
+//      rather than of the water's surface. A renderer without media has to
+//      fake that with a tint, and a tint does not change with depth.
+//
+//      Why a glass of milk is white. Milk is water with fat and protein
+//      droplets in it, each of which is nearly transparent; the white comes
+//      from light scattering off thousands of them before it leaves. There is
+//      no white surface anywhere in a glass of milk. The same mechanism
+//      makes clouds white, and skin the colour it is, which is why v1.3
+//      depends on v1.1 rather than being independent of it.
+//
+// v1.1, "Between the surfaces", is where the straight line becomes a
+// participating medium: a ray acquires a transmittance, an in-scattering
+// term appears inside the integral, and `Ray::at` stops being the whole
+// story. It is a change to this file rather than an addition beside it.
+//
+// It is worth being clear that this is a different kind of admission from the
+// four at the top. Polarisation, fluorescence, interference and diffraction
+// are outside geometric optics — this model cannot represent them in
+// principle. Participating media are squarely inside it. The equation for
+// them is standard, it composes with everything here, and the only reason
+// there are none is that they have not been written yet.
 //
 // ── Solving it: recursion, and then not ──────────────────────────────────
 //
