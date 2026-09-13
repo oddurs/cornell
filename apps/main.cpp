@@ -53,9 +53,8 @@ void print_witnesses() {
                     int(w.milestone.size()), w.milestone.data(),
                     w.built ? "built" : "",
                     int(w.witnesses.size()), w.witnesses.data());
-    std::printf("\n  ./cornell render [width] [root]\n");
+    std::printf("\n  ./cornell render [width] [--spp N]\n");
     std::printf("  The height is derived from the width and the shape of the film.\n");
-    std::printf("  root is the side of the sample lattice; samples per pixel is its square.\n");
 }
 
 // Digits only, and no error reporting beyond refusing to change the default.
@@ -83,8 +82,14 @@ int main(int argc, char* argv[]) {
 
     if (command == "render") {
         app::RenderSettings settings;
-        if (argc > 2) settings.width = integer_or(argv[2], settings.width);
-        if (argc > 3) settings.root  = integer_or(argv[3], settings.root);
+        // `--spp N`, and a bare number is still the width. The sample count
+        // no longer has to be a perfect square: v0.1's lattice needed a side,
+        // and the sampler in v0.2 does not.
+        for (int i = 2; i < argc; ++i) {
+            const std::string_view arg{argv[i]};
+            if (arg == "--spp" && i + 1 < argc) settings.spp = integer_or(argv[++i], settings.spp);
+            else settings.width = integer_or(arg, settings.width);
+        }
         return app::render(settings);
     }
 

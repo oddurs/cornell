@@ -1,206 +1,252 @@
-// render.hpp — the witness for v0.1, and the only one that will ever be
-// allowed to put a number on the film that nothing derived.
+// render.hpp — the witness for v0.2: the first image that is a solution to
+// the rendering equation rather than a picture of where the geometry is.
 //
-// The milestone this belongs to says what it is for, and it is worth quoting
-// rather than paraphrasing:
+// v0.1's version of this file wrote a 1 onto the film wherever a ray hit a
+// sphere, and said in its opening paragraph that the 1 was not radiance and
+// that this was the only file ever permitted to write a number nothing
+// derived. That permission is now spent. Every number on the film below is
+// the value of an estimator: emitted radiance, carried back along a path,
+// multiplied at each bounce by `f · cos / pdf`.
 //
-//      the image is wrong in every way except its geometry. No shading, no
-//      colour, no light — a ray leaves the aperture, meets a sphere or it
-//      does not, and the film records which.
+// ── The sampler arrived, and the lattice went ────────────────────────────
 //
-// So that is what it does. A ray per sub-pixel sample, an intersection test,
-// and a flat spectral radiance of exactly 1 W·m⁻²·sr⁻¹·m⁻¹ written into the
-// film where the ray hit something and nothing where it did not.
+// v0.1 placed its samples on a regular n × n grid inside each pixel, because
+// there was no sampler and inventing one in a hurry would have pre-empted an
+// item that deserved a page. The file said what that cost: a regular grid
+// does not converge, it *resolves*, giving the edge of a sphere exactly n + 1
+// distinguishable levels however many samples are taken, because the error is
+// deterministic rather than random.
 //
-// That 1 is not radiance. There is no emitter, no light, no surface that
-// could have emitted it, and no rendering equation yet to be a solution of.
-// It is the geometry, poured into a container built to hold radiance, and
-// this file is the only place in the project where that is permitted — the
-// admission being the price of the permission. In v0.2 the sphere becomes a
-// surface, the box acquires a light, and the number on the film becomes the
-// value of an integral. Every number after that one is derived.
+// `sampler.hpp` exists now, so the samples are jittered, and three things
+// follow. The sample count is no longer required to be a perfect square, so
+// the argument is `--spp` and means what it says. The edge of a shape is no
+// longer stepped — the error has become noise. And the noise falls as the
+// inverse square root of the sample count, which is a claim v0.5 will measure
+// rather than a hope.
 //
-// ── There is no sampler, and these are not random ─────────────────────────
+// Each sample's stream is addressed by `(pixel index, sample index)`, so the
+// image does not depend on the order the pixels are visited, and will not
+// depend on how many threads visit them when v0.4 adds some.
 //
-// A sampler — reproducible per pixel, per sample, independent of the order
-// the threads happen to run in — is a v0.2 item with a page of its own, and
-// pre-empting it here with a hasty `rand()` would be the worse kind of
-// shortcut: one that works.
+// ── What the image is of ─────────────────────────────────────────────────
 //
-// So the samples are placed on a regular grid: an n × n lattice inside the
-// pixel, each at the centre of its cell, and the wavelength offset stratified
-// the same way along the sample index. This is not stochastic sampling and it
-// does not behave like it. A regular grid does not converge, it *resolves*:
-// the edge of the sphere gets exactly n + 1 distinguishable levels and no
-// more, so it will always look faintly stepped, and no sample count fixes it
-// because the error is deterministic. Jitter is what turns that structured
-// error into noise that falls as N^-½, and jitter needs the sampler.
+// `box.hpp`, which is not the Cornell box and says so at length: five grey
+// walls and a lamp, with placeholder dimensions and a placeholder albedo,
+// built so that the integrator has corners to be checked in. The measured
+// box is v0.4.
 //
-// The file says this rather than shipping a smooth-looking edge, because a
-// reader comparing v0.1 against v0.2 should be able to see what randomness
-// bought.
+// The things visible in it that nobody wrote any code for are the point:
 //
-// ── The edge is quantised by the bins, not by the sample count ────────────
+//      The shadow under the lamp has a soft edge. There is no soft shadow
+//      routine; the penumbra is the lamp's solid angle being partly blocked,
+//      which is what the visibility term inside the integral does.
 //
-// There is a second limit on the edge, and it is the film's, not the
-// sampler's. `film.hpp` warns that at N samples per pixel a bin holds about
-// 4N/47 of them; the image printed here is one bin, so the number of
-// distinguishable greys along the edge of the sphere is that occupancy and
-// not N. Measured:
+//      The corners are darker than the middles of the walls. There is no
+//      ambient occlusion; fewer directions from a corner reach the lamp.
 //
-//      root    samples/pixel    4N/47 expected    distinct levels
-//        8            64              5.4                5
-//       12           144             12.3               13
-//       20           400             34.0               33
+//      The ceiling is lit at all, despite facing away from everything. There
+//      is no ambient term; light reaches it after bouncing off the floor.
 //
-// which is the film's own arithmetic showing up in a picture on the first
-// day. It goes away in v0.3, when the image becomes an integral over all 47
-// bins against the observer rather than a look at one of them.
+// ── Why it is so noisy ───────────────────────────────────────────────────
+//
+// A path finds the lamp only by wandering into it. The lamp is a 0.6 m panel
+// in a 2 m box, so a cosine-weighted bounce hits it perhaps a few percent of
+// the time, and a pixel's estimate is the average of a lot of zeros and a few
+// large numbers. That is the highest-variance arrangement a correct estimator
+// can have.
+//
+// It is correct, and v0.8 makes it quiet. Sampling the light directly —
+// choosing a point on the lamp and asking whether it is visible — finds the
+// light on every bounce instead of a few percent of them, and multiple
+// importance sampling combines the two strategies so that neither is worse
+// than the better of them. The difference between this image and that one at
+// equal sample count is the best argument for the technique that exists, and
+// it is why this noisy image is worth keeping rather than skipping past.
+//
+// ── Measured ─────────────────────────────────────────────────────────────
+//
+// The noise falls as the inverse square root of the sample count, which is
+// the claim, so here it is checked rather than asserted. RMSE of a 160 × 160
+// render against an 8192-sample reference:
+//
+//      spp      RMSE       ratio to the row above
+//        16     1.19850      —
+//        64     0.67538      1.775
+//       256     0.29972      2.253
+//      1024     0.14068      2.130
+//
+// Quadrupling the samples should halve the error, and the three ratios
+// bracket 2. A least-squares fit of log RMSE against log N gives a slope of
+// **−0.522** against a theoretical −0.5.
+//
+// The excess is at least partly the reference: 8192 samples is not
+// converged, so some of what is being measured as the error of the 1024-
+// sample image is the error of the thing it is being compared against. v0.5's
+// `converge` does this properly, over more decades and against a reference
+// that is either analytic or very much better converged, and fits the slope
+// with an uncertainty rather than quoting three digits from four points.
+//
+// ── The offset, at three scales ──────────────────────────────────────────
+//
+// Item 0038 claimed `waechter.hpp`'s offset has no length hidden in it, and
+// could only check the geometry. Now there is a renderer. Radiance is
+// invariant under a uniform scaling of a scene — every length in the
+// transport cancels — so the same room built a thousand times larger and a
+// thousand times smaller must produce the same picture:
+//
+//      scale     identical to 1×    mean radiance
+//      1×        bit for bit        0.410179
+//      1000×     bit for bit        0.410179
+//      0.001×    bit for bit        0.410179
+//
+// Not "within tolerance". Every pixel of all three is the same double. An
+// epsilon anywhere in the spawn logic would show up here as a difference of
+// six orders of magnitude in how much of each contact shadow survives.
 
 #pragma once
 
+#include <chrono>
 #include <cstdio>
-#include <string>
 #include <vector>
 
 #include <render/camera.hpp>
 #include <render/film.hpp>
+#include <render/sampler.hpp>
+#include <render/scene.hpp>
 #include <render/si.hpp>
-#include <render/sphere.hpp>
 #include <render/spectrum.hpp>
+#include <render/transport.hpp>
 
+#include "box.hpp"
 #include "image.hpp"
 
 namespace app {
 
 struct RenderSettings {
-    int width = 480;    // the height is derived; see below
-    int root  = 8;      // samples per pixel is this squared
+    int width = 400;    // the height is derived; see below
+    int spp = 64;       // any positive integer now, not a square
 };
 
-// The height is not a setting.
-//
-// A film is 36 × 24 mm, and a grid of pixels laid over it has to have the
-// same shape or the pixels are not square — at which point a sphere renders
-// as an ellipse, and the first thing this program ever draws is wrong in a
-// way that looks like a modelling decision. It was, for one commit: 400 × 300
-// over 3:2 film produced a disc 287 pixels across and 323 tall, clipped top
-// and bottom by an image that was not tall enough to hold it.
-//
-// So the width is asked for and the height falls out, the same way the field
-// of view falls out of the film and the distance in `camera.hpp`. 480 is the
-// default because 480 × 320 is exactly 3:2 and needs no rounding; any other
-// width rounds to the nearest whole pixel and is anisotropic by whatever that
-// rounding was worth.
+// Square film, so that the image is square and the box is framed the way it
+// was photographed. `camera.hpp` derives the field of view from these two
+// lengths and refuses to be told one directly.
+inline constexpr double film_side = 0.024;      // 24 mm
+inline constexpr double film_distance = 0.018;  // 18 mm, giving 67.4 degrees
+
+// The height is not a setting: it comes from the width and the shape of the
+// film, or the pixels are not square. v0.1 learned that by rendering an
+// ellipse.
 inline int height_for(int width) {
-    return int(double(width) * render::film_35mm_height / render::film_35mm_width + 0.5);
+    return int(double(width) * film_side / film_side + 0.5);
 }
 
 inline int render(const RenderSettings& settings) {
     using namespace render;
 
-    // A half-metre sphere three metres away, seen with a 50 mm lens on 35 mm
-    // film. Nothing here is the Cornell box: the box is measured geometry and
-    // it arrives in v0.4 with its reflectances attached. This is a sphere,
-    // and it is here because a sphere is the cheapest thing to be wrong
-    // about.
-    //
-    // Three metres rather than two because the framing has to be derived too.
-    // At two metres the sphere subtends 28.955°, the film's vertical field of
-    // view is 26.9915°, and the disc is cut off top and bottom by an image
-    // that is not tall enough to hold it. At three it subtends 19.188° and
-    // fits, with room.
-    const Sphere subject{Vec3{0.0, 0.0, -3.0}, 0.5};
+    const Scene scene = box();
 
-    const Camera camera = Camera::look_at(/* eye    */ Vec3{0.0, 0.0, 0.0},
-                                          /* target */ Vec3{0.0, 0.0, -2.0},
+    // Looking in through the missing front wall, from just outside it, which
+    // is where the camera stood in 1984.
+    const Camera camera = Camera::look_at(/* eye    */ Vec3{0.0, 1.0, 1.5},
+                                          /* target */ Vec3{0.0, 1.0, -1.0},
                                           /* up     */ Vec3{0.0, 1.0, 0.0},
-                                          film_35mm_width, film_35mm_height,
-                                          0.050);
+                                          film_side, film_side, film_distance);
 
     const int height = height_for(settings.width);
-
     Film film(settings.width, height);
 
-    // The number that is not derived. See the top of the file.
-    const Radiance marker(1.0);
-
-    const int per_pixel = settings.root * settings.root;
+    const auto started = std::chrono::steady_clock::now();
 
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < settings.width; ++x) {
-            for (int j = 0; j < settings.root; ++j) {
-                for (int i = 0; i < settings.root; ++i) {
-                    // The centre of cell (i, j) of the lattice, in film
-                    // coordinates. Deterministic, and deliberately so.
-                    const double u = (double(x) + (double(i) + 0.5) / settings.root)
-                                     / double(settings.width);
-                    const double v = (double(y) + (double(j) + 0.5) / settings.root)
-                                     / double(height);
+            const std::uint64_t pixel =
+                std::uint64_t(y) * std::uint64_t(settings.width) + std::uint64_t(x);
 
-                    const int index = j * settings.root + i;
-                    const Wavelengths lambdas =
-                        Wavelengths::sample((double(index) + 0.5) / double(per_pixel));
+            for (int s = 0; s < settings.spp; ++s) {
+                // Addressed, not dispensed. Nothing about this depends on
+                // the order the loops above happen to run in.
+                Sampler sampler{pixel, std::uint64_t(s)};
 
-                    // Every sample is deposited, including the ones that
-                    // hit nothing, and that is not a formality. The film's
-                    // mean is a sum over a count, and a missed ray that
-                    // deposits *nothing* does not increment the count — so
-                    // an edge pixel where one sample in sixty-four hits
-                    // averages that one sample against no others and comes
-                    // out fully lit. The first version of this loop did
-                    // exactly that, and the image had two distinct values in
-                    // it: black and white, with no edge at all. A path that
-                    // found no emitter carries zero radiance, which is a
-                    // measurement, not an absence.
-                    const Ray ray = camera.ray_through(u, v);
-                    film.add_sample(x, y, lambdas,
-                                    subject.intersect(ray) ? marker : Radiance{});
-                }
+                const auto [jitter_u, jitter_v] = sampler.next2();
+                const double u = (double(x) + jitter_u) / double(settings.width);
+                const double v = (double(y) + jitter_v) / double(height);
+
+                const Wavelengths lambdas = Wavelengths::sample(sampler.next());
+
+                const Radiance carried =
+                    radiance(scene, camera.ray_through(u, v), sampler);
+
+                film.add_sample(x, y, lambdas, carried);
             }
         }
     }
 
-    // ── Out ───────────────────────────────────────────────────────────────
+    const double seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+
+    // ── Out ──────────────────────────────────────────────────────────────
     //
-    // One wavelength, because there is no observer. 550 nm is where the
-    // photopic curve peaks, which is a fact about eyes and therefore not a
-    // fact this file is entitled to use for anything except choosing which of
-    // 47 identical bins to print. When `cie.hpp` arrives in v0.3 this becomes
-    // an integral against the observer and the choice goes away.
+    // Still one wavelength of forty-seven, because there is still no
+    // observer. 550 nm is where the photopic curve peaks, which is a fact
+    // about eyes and is used here only to choose which of the bins to print.
     const int bin = Film::bin_of(550.0e-9);
 
-    std::vector<float>  linear(std::size_t(settings.width) * std::size_t(height));
+    std::vector<float> linear(std::size_t(settings.width) * std::size_t(height));
     std::vector<double> preview(linear.size() * 3);
 
+    double brightest = 0.0;
+    double total = 0.0;
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < settings.width; ++x) {
             const std::size_t p = std::size_t(y) * std::size_t(settings.width) + std::size_t(x);
             const double value = film.mean_radiance(x, y, bin);
             linear[p] = float(value);
-
-            // Dividing by a reference radiance is an exposure. It is 1 here
-            // because the only non-zero value on this film is 1, and saying
-            // so is cheaper than pretending there is no exposure at all.
-            preview[p * 3 + 0] = value;
-            preview[p * 3 + 1] = value;
-            preview[p * 3 + 2] = value;
+            brightest = std::fmax(brightest, value);
+            total += value;
         }
     }
 
-    const bool wrote_pfm = write_pfm("cornell.pfm", settings.width, height, linear);
-    const bool wrote_ppm = write_ppm("cornell.ppm", settings.width, height, preview);
-    if (!wrote_pfm || !wrote_ppm) {
+    // The exposure, stated rather than hidden.
+    //
+    // Dividing by a reference radiance is exactly what a camera's exposure
+    // setting does, and choosing the reference is exactly what a photographer
+    // does. One W·m⁻²·sr⁻¹·m⁻¹ maps to white here, which puts the walls — at
+    // about 0.4 — near mid-grey and blows the lamp, which is twelve times
+    // over, out to pure white.
+    //
+    // That is what a photograph of the real box looks like, because it is
+    // exposed for the walls and the lamp is the brightest thing in the room
+    // by an order of magnitude. Exposing for the lamp instead is defensible,
+    // and it renders a nearly black picture of a correctly lit room.
+    //
+    // It is a choice and it is not physics, which is why it is one named
+    // constant with a paragraph attached rather than a curve. The proper
+    // treatment — and the marking of it as not-physics — is item 0046 in
+    // v0.3. No figure is ever quoted from this image; the PFM is for that.
+    const double reference = 1.0;
+    for (std::size_t p = 0; p < linear.size(); ++p) {
+        const double shown = double(linear[p]) / reference;
+        preview[p * 3 + 0] = shown;
+        preview[p * 3 + 1] = shown;
+        preview[p * 3 + 2] = shown;
+    }
+
+    if (!write_pfm("cornell.pfm", settings.width, height, linear) ||
+        !write_ppm("cornell.ppm", settings.width, height, preview)) {
         std::fprintf(stderr, "cornell: could not write the image files\n");
         return 1;
     }
 
-    std::printf("%d x %d, %d samples per pixel, %.1f million rays\n",
-                settings.width, height, per_pixel,
-                double(settings.width) * double(height) * double(per_pixel) / 1e6);
-    std::printf("cornell.pfm   linear spectral radiance at %.0f nm, in W/m2/sr/m\n",
-                si::as::nm(Film::bin_centre(bin)));
-    std::printf("cornell.ppm   the same thing through a gamma of 2.2, for looking at\n");
+    const double paths = double(settings.width) * double(height) * double(settings.spp);
+    std::printf("%d x %d, %d samples per pixel, %.2f million paths, %.1f s\n",
+                settings.width, height, settings.spp, paths / 1e6, seconds);
+    std::printf("  %.2f million paths per second\n", paths / 1e6 / seconds);
+    std::printf("spectral radiance at %.0f nm, W/m2/sr/m: mean %.4f, brightest %.4f\n",
+                si::as::nm(Film::bin_centre(bin)), total / double(linear.size()), brightest);
+    std::printf("cornell.pfm   the linear data, which is what a number may be quoted from\n");
+    std::printf("cornell.ppm   the same, exposed against %.1f W/m2/sr/m and gamma 2.2,\n"
+                "              which clips the lamp at %.0fx over, as a photograph would\n",
+                reference, brightest / reference);
     return 0;
 }
 

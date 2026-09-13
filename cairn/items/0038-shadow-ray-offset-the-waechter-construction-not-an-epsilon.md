@@ -38,9 +38,10 @@ dishonest.
 
 ## Acceptance criteria
 
-- [ ] A scene at 1000x scale and 0.001x scale render identically — the
-      geometric half is done and measured over nine orders of magnitude; the
-      *render* half needs a path loop, so it is ticked by item 0040
+- [x] A scene at 1000x scale and 0.001x scale render identically — done in
+      item 0040, once there was a renderer: the same room at 1×, 1000× and
+      0.001× produces bit-for-bit identical images, every pixel the same
+      double, mean radiance 0.410179 in all three
 - [x] No `EPSILON` constant anywhere in the project — `ray_epsilon` is gone,
       `t_min` defaults to zero, and the only occurrences of the word left are
       the two files explaining why there is no such constant
@@ -48,3 +49,7 @@ dishonest.
 ## 2026-09-13
 
 Geometric scale-invariance measured over nine orders of magnitude. Spawning a bounce straight up the normal from a raw hit point self-intersects on over half of 200000 attempts at every scale from 1e-3 to 1e6 m - 103292, 106005, 107940, 108727 - every one at exactly t = 0, now visible because t_min is zero rather than an epsilon hiding it. From the offset point: zero at every scale. The offset moves the point by 2.78e-14 to 2.98e-14 of the scene scale across six decades, i.e. the same relative step with nothing in the code that knows how big the scene is. The published construction is float and three of its constants do not port: 2^-16 is 15 micrometres, which in a two-metre box is enormous. The ulp count carries (it is a claim about roundings, not about the type); the near-zero fallback was rethought rather than rescaled, and uses ulps of the point's largest coordinate, because the error in a coordinate that is nearly zero comes from the other two. shadow_ray was deleted rather than ported: it was built out of two epsilon subtractions, was never called, and v0.8 needs a both-ends version that is a different function.
+
+## 2026-09-13
+
+Closed properly in 0040. The same room rendered at 1x, 1000x and 0.001x is bit-for-bit identical - every pixel the same double, mean radiance 0.410179 in all three. Radiance is invariant under a uniform scaling, so any length hidden in the spawn logic would have shown up as a six-order-of-magnitude difference in the contact shadows.
