@@ -2,7 +2,7 @@
 id: 17
 title: 'si.hpp: the dictionary of what this program will accept'
 type: optics
-status: planned
+status: done
 milestone: v0.1
 labels:
 - foundation
