@@ -1,0 +1,68 @@
+#!/bin/sh
+# propose — take the work in this worktree to a pull request.
+#
+# The shape of the workflow this belongs to is in AGENTS.md. The short of it:
+# one cairn item, one worktree, one branch, one commit, one pull request, and
+# then main moves forward by exactly that commit and the worktree is gone.
+#
+# Every change to this repository arrives as a pull request, including the
+# one-line ones and including this file. Not because anybody is going to
+# review them — this is a project of one — but because a pull request is the
+# only place where a change is *checked by something that is not the machine
+# that wrote it*. The local gate proves the code builds here. CI proves it
+# builds on Linux, under gcc, from a clean checkout, which is three
+# assumptions the local gate quietly makes.
+#
+# Refusing is half the job: a dirty tree, a conflicted rebase, or a rebase
+# whose result does not build all stop it, and it says which. That last case
+# is the one the commit gate cannot see, because each commit built before the
+# code underneath it moved.
+#
+#     .claude/propose     rebase onto origin/main, build, push, open the PR
+#
+# Run it again after more commits and it updates the same pull request.
+
+set -eu
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+[ "$branch" = "main" ] && { echo "propose: on main. Work happens on a branch." >&2; exit 1; }
+[ "$branch" = "HEAD" ] && { echo "propose: detached head." >&2; exit 1; }
+
+[ -z "$(git status --porcelain)" ] || {
+    git status --short >&2
+    echo "propose: the worktree is dirty. Commit it or drop it." >&2
+    exit 1
+}
+
+git fetch --quiet origin main
+
+n=$(git rev-list --count origin/main.."$branch")
+[ "$n" -eq 0 ] && { echo "propose: $branch has no commits origin/main does not have." >&2; exit 1; }
+
+# Rebase rather than merge, so that main stays a single line of argument. A
+# merge commit in a log meant to be read as prose is a paragraph that says
+# nothing. If it conflicts, stop and leave the rebase in progress: resolving
+# it is a decision made with the files in front of you, not something a script
+# should guess at.
+git rebase origin/main || {
+    echo "propose: the rebase stopped. Resolve it here, then run propose again." >&2
+    exit 1
+}
+
+# The commits each built where they were written. After a rebase they are
+# sitting on different code, and that is a different claim.
+set -- apps/*.cpp
+if [ -e "$1" ]; then
+    make >/dev/null || { echo "propose: rebased onto origin/main, and the result does not build." >&2; exit 1; }
+fi
+
+# --force-with-lease rather than --force: a rebase rewrites the branch, so the
+# push has to overwrite what is there, but only if what is there is what we
+# last saw. The bare --force is never the right spelling of this.
+git push --quiet --force-with-lease --set-upstream origin "$branch"
+
+if url=$(gh pr view --json url --jq .url 2>/dev/null); then
+    echo "propose: updated $url"
+else
+    gh pr create --base main --fill
+fi

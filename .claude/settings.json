@@ -1,0 +1,51 @@
+{
+  "$comment": "Checked in on purpose. The hook is the build rule from CLAUDE.md, enforced rather than remembered; the worktree setting is the branching model; the allowlist is the set of commands this project's loop actually runs, so that an agent working an item is not interrupted nine times to ask whether it may call make. The only deny is the one operation with no undo. Force-pushing a topic branch is not on that list: a rebase rewrites the branch, so publishing it has to overwrite, and .claude/propose does it with --force-with-lease, which is the spelling that checks what it is overwriting first.",
+  "permissions": {
+    "allow": [
+      "Bash(make)",
+      "Bash(make:*)",
+      "Bash(./cornell:*)",
+      "Bash(c++:*)",
+      "Bash(g++:*)",
+      "Bash(clang++:*)",
+      "Bash(cairn:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git switch:*)",
+      "Bash(git restore:*)",
+      "Bash(git fetch:*)",
+      "Bash(git rebase:*)",
+      "Bash(git merge --ff-only:*)",
+      "Bash(git worktree:*)",
+      "Bash(gh pr:*)",
+      "Bash(gh run:*)",
+      "Bash(.claude/propose:*)",
+      "Bash(.claude/land:*)"
+    ],
+    "deny": [
+      "Bash(git reset --hard:*)"
+    ]
+  },
+  "worktree": {
+    "baseRef": "fresh"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/build-gate.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

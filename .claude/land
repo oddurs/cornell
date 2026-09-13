@@ -1,0 +1,57 @@
+#!/bin/sh
+# land — merge this branch's pull request, and leave nothing behind.
+#
+# It waits for CI rather than trusting the local build, merges by rebase so
+# that main has no merge commits in it, and then removes the branch on both
+# sides and the worktree it was written in. See AGENTS.md, and `propose`,
+# which is the half of the loop that comes before this one.
+#
+#     .claude/land            wait for the checks, rebase-merge, clean up
+#     .claude/land --keep     the same, but leave the worktree on disk
+
+set -eu
+
+keep=no
+[ "${1:-}" = "--keep" ] && keep=yes
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+[ "$branch" = "main" ] && { echo "land: on main; nothing to land." >&2; exit 1; }
+
+here=$(git rev-parse --show-toplevel)
+main=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
+[ "$here" = "$main" ] && { echo "land: this is the main worktree." >&2; exit 1; }
+
+gh pr view --json url --jq .url >/dev/null 2>&1 || {
+    echo "land: $branch has no pull request. Run .claude/propose first." >&2
+    exit 1
+}
+
+# The authority. If there are no checks configured yet this says so and is
+# not treated as a pass, because "no checks" and "checks passed" are not the
+# same sentence.
+if gh pr checks >/dev/null 2>&1; then
+    gh pr checks --watch --fail-fast || {
+        echo "land: the checks did not pass. The pull request stays open." >&2
+        exit 1
+    }
+else
+    echo "land: no checks are configured on this pull request."
+fi
+
+gh pr merge --rebase --delete-branch
+
+# Bring the main worktree up to what was just merged, by fast-forward only —
+# if that is not a fast-forward, something happened that a script should not
+# be resolving.
+git -C "$main" fetch --quiet origin main
+git -C "$main" merge --ff-only origin/main
+
+cd "$main"
+if [ "$keep" = "no" ]; then
+    git worktree remove --force "$here"
+    # -D rather than -d: a rebase-merge gives the commit a new hash upstream,
+    # so git cannot see that this branch's commits are contained in main. They
+    # are; the pull request is the record.
+    git branch -D "$branch" 2>/dev/null || true
+    echo "land: $branch and its worktree removed."
+fi
