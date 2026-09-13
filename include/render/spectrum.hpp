@@ -64,6 +64,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <render/si.hpp>
 
 namespace render {
@@ -93,7 +94,7 @@ public:
         constexpr double span = si::lambda_max - si::lambda_min;
         for (int i = 0; i < spectral_samples; ++i) {
             const double offset = u + double(i) / double(spectral_samples);
-            w.lambda_[i] = si::lambda_min + span * (offset - std::floor(offset));
+            w.lambda_[std::size_t(i)] = si::lambda_min + span * (offset - std::floor(offset));
         }
         return w;
     }
@@ -105,7 +106,7 @@ public:
         return 1.0 / (si::lambda_max - si::lambda_min);
     }
 
-    constexpr double operator[](int i) const { return lambda_[i]; }
+    constexpr double operator[](int i) const { return lambda_[std::size_t(i)]; }
     constexpr double hero()          const { return lambda_[0];  }
 
     // True once a path has refracted dispersively and the four wavelengths no
@@ -143,8 +144,14 @@ public:
     constexpr Sampled() = default;
     constexpr explicit Sampled(double v) { v_.fill(v); }
 
-    constexpr double  operator[](int i) const { return v_[i]; }
-    constexpr double& operator[](int i)       { return v_[i]; }
+    // The index is an `int` in the signature and a `size_t` at the array,
+    // spelled out rather than left implicit: every loop over wavelengths in
+    // this project counts with an `int`, `std::array` subscripts with an
+    // unsigned, and `-Wsign-conversion` is right that the boundary between
+    // them is where an index bug would live. Writing the conversion is how
+    // the warning stays worth reading.
+    constexpr double  operator[](int i) const { return v_[std::size_t(i)]; }
+    constexpr double& operator[](int i)       { return v_[std::size_t(i)]; }
 
     constexpr Sampled& operator+=(const Sampled& o) {
         for (int i = 0; i < spectral_samples; ++i) v_[i] += o.v_[i];
