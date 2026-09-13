@@ -2,7 +2,7 @@
 id: 19
 title: 'Spectrum: light as a function of wavelength, which is what it is'
 type: optics
-status: planned
+status: done
 milestone: v0.1
 labels:
 - foundation

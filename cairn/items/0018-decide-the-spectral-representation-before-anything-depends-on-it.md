@@ -2,7 +2,7 @@
 id: 18
 title: Decide the spectral representation before anything depends on it
 type: spike
-status: planned
+status: done
 milestone: v0.1
 labels:
 - foundation
@@ -44,3 +44,30 @@ from white light without a dispersion hack, it has failed the thesis.
 ## Answer
 
 <!-- Filled in when this closes. -->
+
+## 2026-09-13
+
+## Answer
+
+**Four wavelengths per path, hero-sampled, stratified by rotation.** Wilkie et
+al., 2014.
+
+Fixed bins were rejected because the banding they produce in a prism is in the
+representation rather than in the noise, so no sample count removes it — and
+the prism in v0.9 is one of the project's two showpieces. One wavelength per
+path was rejected as needlessly noisy: it throws away three quarters of the
+colour information a path could carry for almost no saving, since the cost of
+a path is the intersection, not the arithmetic.
+
+Four is carried in `Wavelengths`, drawn from a single uniform number, with the
+other three placed at exact quarters of the visible range and wrapped. That
+makes them stratified by construction rather than by luck, and it means a
+caller who stratifies `u` across paths gets the whole visible range covered
+evenly for free — which will matter in v0.8.
+
+The range is 360 to 830 nm, which is the domain of the CIE 1931 tables. It is
+wider than useful and the edges are chosen by the table rather than by
+somebody's judgement, which is the reason to prefer it.
+
+A `separated` flag is already on the type and nothing sets it. v0.9 does, when
+a path refracts dispersively and the four stop travelling together.

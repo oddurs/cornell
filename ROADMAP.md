@@ -25,15 +25,12 @@ labelled `thesis` exists to make one of them true or to catch it becoming false.
 
 ## v0.1 — A dark room with a hole in it
 
-`··········` 0% · 0 of 12 done
+`###·······` 25% · 3 of 12 done
 
 The oldest instrument there is: a sealed box, a small aperture, and the observation that light travels in straight lines so a pinhole sorts it by direction.
 
 ### planned
 
-- [ ] [`0017`](https://github.com/oddurs/cornell/blob/main/cairn/items/0017-si-hpp-the-dictionary-of-what-this-program-will-accept.md) si.hpp: the dictionary of what this program will accept <sup>optics · p0 · units · foundation</sup>
-- [ ] [`0018`](https://github.com/oddurs/cornell/blob/main/cairn/items/0018-decide-the-spectral-representation-before-anything-depends-on-it.md) Decide the spectral representation before anything depends on it <sup>spike · p0 · spectrum · foundation</sup>
-- [ ] [`0019`](https://github.com/oddurs/cornell/blob/main/cairn/items/0019-spectrum-light-as-a-function-of-wavelength-which-is-what-it-is.md) Spectrum: light as a function of wavelength, which is what it is <sup>optics · p0 · spectrum · foundation</sup>
 - [ ] [`0020`](https://github.com/oddurs/cornell/blob/main/cairn/items/0020-ray-and-the-self-intersection-problem-stated-but-not-yet-solved.md) Ray, and the self-intersection problem stated but not yet solved <sup>optics · p0 · geometry</sup>
 - [ ] [`0021`](https://github.com/oddurs/cornell/blob/main/cairn/items/0021-sphere-intersection-and-the-cancellation-in-the-obvious-quadratic.md) Sphere intersection, and the cancellation in the obvious quadratic <sup>optics · p2 · geometry · derivation</sup>
 - [ ] [`0022`](https://github.com/oddurs/cornell/blob/main/cairn/items/0022-the-pinhole-camera-which-is-the-whole-instrument-at-this-stage.md) The pinhole camera, which is the whole instrument at this stage <sup>optics · p2 · camera</sup>
@@ -43,6 +40,12 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 - [ ] [`0026`](https://github.com/oddurs/cornell/blob/main/cairn/items/0026-the-makefile-the-warnings-and-the-fifteen-year-guarantee.md) The Makefile, the warnings, and the fifteen-year guarantee <sup>chore · p2 · build</sup>
 - [ ] [`0027`](https://github.com/oddurs/cornell/blob/main/cairn/items/0027-readme-the-argument-before-there-is-anything-to-show.md) README: the argument, before there is anything to show <sup>prose · p2 · prose</sup>
 - [ ] [`0028`](https://github.com/oddurs/cornell/blob/main/cairn/items/0028-admit-at-the-top-of-transport-hpp-that-this-is-geometric-optics.md) Admit, at the top of transport.hpp, that this is geometric optics <sup>prose · p2 · prose · admission</sup>
+
+### done
+
+- [x] [`0017`](https://github.com/oddurs/cornell/blob/main/cairn/items/0017-si-hpp-the-dictionary-of-what-this-program-will-accept.md) si.hpp: the dictionary of what this program will accept <sup>optics · p0 · units · foundation</sup>
+- [x] [`0018`](https://github.com/oddurs/cornell/blob/main/cairn/items/0018-decide-the-spectral-representation-before-anything-depends-on-it.md) Decide the spectral representation before anything depends on it <sup>spike · p0 · spectrum · foundation</sup>
+- [x] [`0019`](https://github.com/oddurs/cornell/blob/main/cairn/items/0019-spectrum-light-as-a-function-of-wavelength-which-is-what-it-is.md) Spectrum: light as a function of wavelength, which is what it is <sup>optics · p0 · spectrum · foundation</sup>
 
 ## v0.2 — The cosine law
 
