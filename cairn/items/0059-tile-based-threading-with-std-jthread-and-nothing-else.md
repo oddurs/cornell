@@ -21,3 +21,6 @@ not the image, and a test asserts exactly that.
 
 - [ ] Bit-identical output at 1 thread and at N
 - [ ] No mutable state shared between tiles other than the film
+- [ ] Two renders at different thread counts are bit-identical, which is
+      item 0035's last criterion: the sampler was built to make this true
+      and there were no threads yet to prove it with
