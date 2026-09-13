@@ -2,8 +2,9 @@
 id: 21
 title: Sphere intersection, and the cancellation in the obvious quadratic
 type: optics
-status: planned
+status: done
 milestone: v0.1
+assignee: Oddur Sigurdsson
 labels:
 - derivation
 created: 2026-09-13
@@ -28,5 +29,9 @@ is to compute the well-conditioned root and get the other from `t1·t2 = c/a`.
 
 ## Acceptance criteria
 
-- [ ] A test that fails with the naive formula and passes with this one
-- [ ] The comment says what is lost, not what is computed
+- [x] A test that fails with the naive formula and passes with this one
+- [x] The comment says what is lost, not what is computed
+
+## 2026-09-13
+
+The fix this item prescribed - well-conditioned root, other from t1*t2=c/a - is the right advice about the textbook quadratic and does not apply to the half-b form. sqrt(disc) <= r always, so the roots can only cancel when the origin is about r from the centre, and in exactly that case c = f.f - r^2 has already lost the same digits. Measured at eps = 1e-6/1e-9/1e-12 above the surface, b-sqrt and c/(b+sqrt) agree to the last digit. The real loss is in the discriminant, not the roots: at 1e8 m, b*b-c evaluates to exactly 0 against a true 0.75. So the file computes the discriminant as r^2 - |f_perp|^2 (Haines, Gunther, Akenine-Moller, Ray Tracing Gems 2019) and never forms c at all.
