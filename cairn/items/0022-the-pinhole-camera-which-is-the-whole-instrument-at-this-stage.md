@@ -2,8 +2,9 @@
 id: 22
 title: The pinhole camera, which is the whole instrument at this stage
 type: optics
-status: planned
+status: done
 milestone: v0.1
+assignee: Oddur Sigurdsson
 created: 2026-09-13
 updated: 2026-09-13
 priority: p2
@@ -25,5 +26,9 @@ than missing.
 
 ## Acceptance criteria
 
-- [ ] Field of view is derived from the film size and focal length, never
+- [x] Field of view is derived from the film size and focal length, never
       given directly
+
+## 2026-09-13
+
+Field of view is three derived accessors and no stored field. Checked against itself: the ray through the image corner makes 23.396502 deg with the viewing axis, and half the derived diagonal fov is 23.396502 deg, agreeing to better than 1e-12 rad. The distance is called film_distance, not focal length - there is no lens, so there is no focus.
