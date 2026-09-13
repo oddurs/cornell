@@ -2,8 +2,9 @@
 id: 39
 title: 'An area light: a triangle that emits'
 type: optics
-status: backlog
+status: done
 milestone: v0.2
+assignee: Oddur Sigurdsson
 created: 2026-09-13
 updated: 2026-09-13
 priority: p2
@@ -21,3 +22,7 @@ the best advertisement multiple importance sampling has.
 
 - [ ] One-sided by default, and the comment says why two-sided emitters are a
       modelling convenience rather than a physical object
+
+## 2026-09-13
+
+One-sided, verified both ways: a camera in front of the +z face sees 2.0 and one behind it sees 0.0. The first version of that test had two spheres between the camera and the emitter and was measuring the spheres. Triangle is Moller-Trumbore with no epsilon - the parallel test is det == 0.0 exactly, because a small determinant is a grazing hit and a tolerance would throw it away and crack the shared edge of two triangles. Grazing rays at 1e-6 down to 1e-15 radians all hit. Variant dispatch is bit-identical to calling the model directly.
