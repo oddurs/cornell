@@ -256,19 +256,19 @@ sort = "priority,milestone"
 [[view]]
 name = "thesis"
 description = "The items the whole project exists to make true"
-filter = "label=thesis,category!=done"
+filter = "labels~thesis,category!=done"
 sort = "milestone,id"
 
 [[view]]
 name = "derivations"
 description = "Things that must fall out rather than be typed in"
-filter = "label=derivation,category!=done"
+filter = "labels~derivation,category!=done"
 sort = "milestone,id"
 
 [[view]]
 name = "honesty"
 description = "Admissions owed: what is not modelled, and what was calibrated"
-filter = "label=admission,category!=done"
+filter = "labels~admission,category!=done"
 sort = "milestone,id"
 
 [[view]]
