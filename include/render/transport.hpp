@@ -278,6 +278,37 @@
 // than hangs. If the limit is ever reached in a correct scene, the roulette
 // is misconfigured, and the default is set high enough that reaching it is
 // evidence of a mistake rather than of a bright room.
+//
+// ── Measured ─────────────────────────────────────────────────────────────
+//
+// A closed cavity, every wall emitting `Le` and reflecting `rho`. The
+// radiance inside is isotropic and satisfies `L = Le + rho·L`, so there is an
+// exact answer to check against: `L = Le / (1 − rho)`. 200 000 paths from the
+// centre in uniformly random directions, `Le = 1`:
+//
+//      rho      exact       estimated      relative error
+//      0.00     1.0000       1.000000      0
+//      0.25     1.3333       1.333333      2.61e-12
+//      0.50     2.0000       2.000000      1.11e-16
+//      0.75     4.0000       4.000000      1.11e-16
+//      0.90    10.0000      10.000000      3.05e-13
+//
+// Those are not small errors from a lot of samples. They are *no* error, and
+// the reason is the one `lambert.hpp` measured: cosine-sampling a Lambertian
+// makes `f · cos / pdf` exactly `rho` for every draw, so in a cavity with
+// uniform emission every path returns the same geometric series and the
+// estimator has no variance at all.
+//
+// Which is worth saying plainly, because it means this test proves the
+// transport is *right* and proves nothing whatever about how it behaves in
+// the presence of noise. The first noisy image is item 0040, and the
+// instrument that measures noise properly is v0.5's.
+//
+// The residual at `rho = 0.9` is the depth limit, and it is the bias this
+// section warned about arriving on cue: a path truncated at 256 bounces has
+// discarded `rho^256` of its contribution, which for 0.9 is 1.9e-12 — the
+// same size as the error observed. At 0.25 it is 1e-154, and what is left
+// there is ordinary floating-point accumulation.
 
 #pragma once
 
