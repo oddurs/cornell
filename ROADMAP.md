@@ -58,7 +58,6 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 - [ ] [`0032`](https://github.com/oddurs/cornell/blob/main/cairn/items/0032-the-estimator-is-visible-never-cancel-the-pdf-inside-the-sampler.md) The estimator is visible: never cancel the pdf inside the sampler <sup>optics · p0 · transport · thesis</sup>
 - [ ] [`0036`](https://github.com/oddurs/cornell/blob/main/cairn/items/0036-russian-roulette-with-the-survival-probability-written-out.md) Russian roulette, with the survival probability written out <sup>optics · p2 · transport · derivation</sup>
 - [ ] [`0037`](https://github.com/oddurs/cornell/blob/main/cairn/items/0037-the-path-loop-iterative-rather-than-recursive-and-why.md) The path loop, iterative rather than recursive, and why <sup>optics · p0 · transport</sup>
-- [ ] [`0038`](https://github.com/oddurs/cornell/blob/main/cairn/items/0038-shadow-ray-offset-the-waechter-construction-not-an-epsilon.md) Shadow ray offset: the Waechter construction, not an epsilon <sup>optics · p0 · geometry</sup>
 - [ ] [`0039`](https://github.com/oddurs/cornell/blob/main/cairn/items/0039-an-area-light-a-triangle-that-emits.md) An area light: a triangle that emits <sup>optics · p2 · light</sup>
 - [ ] [`0040`](https://github.com/oddurs/cornell/blob/main/cairn/items/0040-the-first-path-traced-image-and-the-first-noise.md) The first path-traced image, and the first noise <sup>instrument · p2 · instrument</sup>
 - [ ] [`0041`](https://github.com/oddurs/cornell/blob/main/cairn/items/0041-admit-that-light-travels-unchanged-between-surfaces.md) Admit that light travels unchanged between surfaces <sup>prose · p2 · prose · admission</sup>
@@ -66,6 +65,7 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 ### in progress
 
 - [ ] [`0031`](https://github.com/oddurs/cornell/blob/main/cairn/items/0031-the-three-method-contract-sample-eval-pdf.md) The three-method contract: sample, eval, pdf <sup>optics · p0 · bsdf · foundation</sup>
+- [ ] [`0038`](https://github.com/oddurs/cornell/blob/main/cairn/items/0038-shadow-ray-offset-the-waechter-construction-not-an-epsilon.md) Shadow ray offset: the Waechter construction, not an epsilon <sup>optics · p0 · geometry</sup>
 
 ### done
 
