@@ -2,10 +2,9 @@
 id: 31
 title: 'The three-method contract: sample, eval, pdf'
 type: optics
-status: doing
+status: done
 milestone: v0.2
 assignee: Oddur Sigurdsson
-claimed: 2026-09-13
 labels:
 - foundation
 created: 2026-09-13
@@ -36,10 +35,10 @@ separating them is that a machine can check they agree.
 
 ## Acceptance criteria
 
-- [ ] `std::variant` and `std::visit`, not virtual dispatch — a jump table is
+- [x] `std::variant` and `std::visit`, not virtual dispatch — a jump table is
       what you would write by hand for a tagged union. The contract is in
-      `bsdf.hpp`; the closed set has to be declared where every model is
-      visible, which is `scene.hpp`, so this is ticked there
+      `bsdf.hpp`; the closed set is declared in `scene.hpp`, which is the file
+      that has to know what materials exist because it holds them
 - [x] No BSDF may be added without all three methods — a `concept`, so a
       model short a method fails where it is declared rather than at a call
       site months later, and the diagnostic names the method: *because
