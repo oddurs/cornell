@@ -150,15 +150,22 @@ public:
     // unsigned, and `-Wsign-conversion` is right that the boundary between
     // them is where an index bug would live. Writing the conversion is how
     // the warning stays worth reading.
+    //
+    // These two are the *only* place that conversion happens. Every loop in
+    // this file, including the private ones, goes through them rather than
+    // touching `v_` directly — which is not style. The members below were
+    // written against the array, the warning could not see them because
+    // nothing had instantiated them yet, and they surfaced one at a time over
+    // three commits as each was first called. One crossing, checked once.
     constexpr double  operator[](int i) const { return v_[std::size_t(i)]; }
     constexpr double& operator[](int i)       { return v_[std::size_t(i)]; }
 
     constexpr Sampled& operator+=(const Sampled& o) {
-        for (int i = 0; i < spectral_samples; ++i) v_[i] += o.v_[i];
+        for (int i = 0; i < spectral_samples; ++i) (*this)[i] += o[i];
         return *this;
     }
     constexpr Sampled& operator*=(double s) {
-        for (int i = 0; i < spectral_samples; ++i) v_[i] *= s;
+        for (int i = 0; i < spectral_samples; ++i) (*this)[i] *= s;
         return *this;
     }
 
@@ -167,7 +174,7 @@ public:
     friend constexpr Sampled operator*(double s, Sampled a)         { return a *= s; }
 
     constexpr bool is_black() const {
-        for (int i = 0; i < spectral_samples; ++i) if (v_[std::size_t(i)] != 0.0) return false;
+        for (int i = 0; i < spectral_samples; ++i) if ((*this)[i] != 0.0) return false;
         return true;
     }
 
