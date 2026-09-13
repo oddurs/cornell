@@ -48,4 +48,19 @@ if ! out=$(cairn check 2>&1); then
     exit 2
 fi
 
+# transport.hpp claims that soft shadows, ambient occlusion and the rest have
+# no code — they are what solving one integral honestly looks like. CI checks
+# this too and CI is the authority; it is here as well because finding out in
+# two seconds beats finding out in a minute, and this check fires on prose as
+# readily as on code. It caught the word "faked" in transport.hpp's own
+# admission about deep water.
+#
+# The pattern lives in this file, which is outside the directories it
+# searches. That is not incidental: a grep for a word cannot live in a tree
+# that has to be free of it.
+if out=$(grep -rniE 'soft_shadow|ambient_occlusion|fake' include/ apps/ 2>/dev/null); then
+    printf 'Refusing the commit: transport.hpp claims none of these has any code.\n\n%s\n' "$out" >&2
+    exit 2
+fi
+
 exit 0
