@@ -48,13 +48,12 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 
 ## v0.2 — The cosine law
 
-`#####·····` 50% · 7 of 14 done
+`######····` 57% · 8 of 14 done
 
 Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by exactly the cosine, and what looks like a property of matte paint is a fact about projected area.
 
 ### backlog
 
-- [ ] [`0029`](https://github.com/oddurs/cornell/blob/main/cairn/items/0029-transport-hpp-the-rendering-equation-written-down-once.md) transport.hpp: the rendering equation, written down once <sup>optics · p0 · transport · thesis</sup>
 - [ ] [`0032`](https://github.com/oddurs/cornell/blob/main/cairn/items/0032-the-estimator-is-visible-never-cancel-the-pdf-inside-the-sampler.md) The estimator is visible: never cancel the pdf inside the sampler <sup>optics · p0 · transport · thesis</sup>
 - [ ] [`0036`](https://github.com/oddurs/cornell/blob/main/cairn/items/0036-russian-roulette-with-the-survival-probability-written-out.md) Russian roulette, with the survival probability written out <sup>optics · p2 · transport · derivation</sup>
 - [ ] [`0037`](https://github.com/oddurs/cornell/blob/main/cairn/items/0037-the-path-loop-iterative-rather-than-recursive-and-why.md) The path loop, iterative rather than recursive, and why <sup>optics · p0 · transport</sup>
@@ -67,6 +66,7 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 
 ### done
 
+- [x] [`0029`](https://github.com/oddurs/cornell/blob/main/cairn/items/0029-transport-hpp-the-rendering-equation-written-down-once.md) transport.hpp: the rendering equation, written down once <sup>optics · p0 · transport · thesis</sup>
 - [x] [`0030`](https://github.com/oddurs/cornell/blob/main/cairn/items/0030-derive-lambert-s-1-pi-in-the-file-that-uses-it.md) Derive Lambert's 1/pi in the file that uses it <sup>optics · p0 · bsdf · derivation</sup>
 - [x] [`0031`](https://github.com/oddurs/cornell/blob/main/cairn/items/0031-the-three-method-contract-sample-eval-pdf.md) The three-method contract: sample, eval, pdf <sup>optics · p0 · bsdf · foundation</sup>
 - [x] [`0033`](https://github.com/oddurs/cornell/blob/main/cairn/items/0033-an-orthonormal-basis-from-a-single-normal-branchless.md) An orthonormal basis from a single normal, branchless <sup>optics · p2 · sampling</sup>

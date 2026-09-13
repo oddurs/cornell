@@ -81,7 +81,7 @@
 //      structural colour of a beetle or a butterfly or a peacock — none of
 //      which is a pigment — and the anti-reflective coating on every lens
 //      this project will model in v1.5, which works by interference and will
-//      have to be faked.
+//      have to be approximated rather than computed.
 //
 //   4. DIFFRACTION.
 //
@@ -112,12 +112,111 @@
 // worth saying, since the absence of an item is the easiest omission to
 // mistake for an oversight.
 //
-// ── What this file will contain ───────────────────────────────────────────
+// ── The equation ─────────────────────────────────────────────────────────
 //
-// The rendering equation, once, written out where it can be read, and the
-// estimator that solves it. That is v0.2. Nothing is declared below yet, and
-// the emptiness is deliberate: the argument is the part that had to exist
-// first, because everything written after it inherits the limit.
+// Kajiya, SIGGRAPH 1986, "The Rendering Equation". As he wrote it:
+//
+//      I(x, x') = g(x, x') [ e(x, x') + ∫  p(x, x', x'') I(x', x'') dx'' ]
+//                                       S
+//
+//      I   the intensity of light passing from x' to x
+//      g   the geometry term: zero if x and x' cannot see each other, and
+//          otherwise falling off with the square of the distance between them
+//      e   the light emitted from x' towards x
+//      p   the scattering term: how much light arriving at x' from x''
+//          continues towards x
+//      S   the union of all surfaces in the scene
+//
+// It is an integral over *surfaces*, which is the formulation that makes the
+// visibility explicit — `g` is where the shadow lives — and it is the form
+// that bidirectional methods in v1.4 will need, because a path built from
+// both ends is naturally a sequence of points rather than of directions.
+//
+// The form this project computes in is the same equation with the variable
+// changed from points to directions:
+//
+//      L(x, wo) = Le(x, wo) + ∫ f(x, wi, wo) L(x, wi) (n·wi) dwi
+//                             H²
+//
+// The two are related by the Jacobian of that change of variables,
+//
+//      dw = cos(theta') dx'' / r²
+//
+// which is exactly Kajiya's `g`. It has not gone anywhere: it has been
+// absorbed into the measure, and the visibility it carried is now performed
+// by casting a ray. That is the whole reason the directional form is the one
+// to implement — the integral runs over a hemisphere that is always the same
+// shape, instead of over a set of surfaces that changes with the scene, and
+// the occlusion test is a function call rather than a term.
+//
+// ── Which file owns which term ───────────────────────────────────────────
+//
+//      Le(x, wo)       `scene.hpp` — `Surface::emission`, and `emitted()`,
+//                      which returns it only on the side the normal faces
+//
+//      f(x, wi, wo)    `bsdf.hpp` — the three-method contract every surface
+//                      signs. `lambert.hpp` is the only model so far and
+//                      `fresnel.hpp` in v0.6 is the one the project is for
+//
+//      (n·wi)          `basis.hpp` — `cos_theta`, and the tangent frame the
+//                      BSDF is evaluated in
+//
+//      L(x, wi)        the recursion, and therefore this file. It is resolved
+//                      by casting a ray — `scene.hpp` finds what is there,
+//                      `waechter.hpp` makes sure the ray does not find the
+//                      surface it started on
+//
+//      ∫ … dwi         `warp.hpp` chooses the directions and states their
+//                      density; `sampler.hpp` supplies the variates that
+//                      choosing consumes. The division by that density is
+//                      written out at the point of use and never cancelled,
+//                      which is house rule 3 and item 0032
+//
+// ── The list with no code ────────────────────────────────────────────────
+//
+// Soft shadows. Colour bleeding. Caustics. Ambient occlusion. Depth of field.
+// Glossy reflection. Indirect illumination. Contact shadows.
+//
+// **None of them has any code.** Not a routine, not a flag, not a term. They
+// are what solving the equation above honestly *looks like*, and a reader
+// will not believe that without being told plainly, because every renderer
+// they have used has a checkbox for at least four of them.
+//
+// A soft shadow is the light's solid angle being partly blocked, which falls
+// out of an area emitter and a visibility test. Colour bleeding is `f` being
+// spectral and the recursion having more than one bounce. A caustic is a path
+// that happens to go light → specular → diffuse → eye. Ambient occlusion is
+// an approximation *to* this equation that exists because the equation was
+// too expensive in 1998; computing the equation and then adding ambient
+// occlusion to it is adding an approximation of a thing to the thing.
+//
+// The acceptance criterion for this file is that a search of `include/` and
+// `apps/` for the names of those features finds nothing, and it is checked on
+// every pull request rather than asserted here — the pattern lives in
+// `.github/workflows/ci.yml`, outside the tree it searches, which is the only
+// way a grep for a word can be run over a file that has to be free of it.
+//
+// If it ever fires, the project has stopped making its second claim and
+// should stop printing it.
+//
+// ── What is not modelled ─────────────────────────────────────────────────
+//
+// The equation as written assumes light leaves a surface from the point it
+// arrived at (no subsurface transport — v1.3), at the same instant (nothing
+// is in flight, and nothing fluoresces), and at the same wavelength (no
+// fluorescence — see the list above). The wavelength assumption is why
+// `Reflectance` multiplies a `Radiance` component by component: a diagonal
+// matrix, where fluorescence would need a full one.
+//
+// It also assumes light travels unchanged between surfaces, which is the
+// subject of item 0041 and the next thing this file has to admit.
+//
+// ── What this file will contain ──────────────────────────────────────────
+//
+// The estimator that solves the equation above: the path loop, iterative
+// rather than recursive, carrying a throughput. That is item 0037, and it is
+// the next commit. The equation had to be written down before the thing that
+// solves it, because everything in the loop is a term from it.
 
 #pragma once
 

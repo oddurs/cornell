@@ -2,8 +2,9 @@
 id: 29
 title: 'transport.hpp: the rendering equation, written down once'
 type: optics
-status: backlog
+status: done
 milestone: v0.2
+assignee: Oddur Sigurdsson
 labels:
 - thesis
 created: 2026-09-13
@@ -40,7 +41,15 @@ never), and at the same wavelength.
 
 ## Acceptance criteria
 
-- [ ] The integral appears in the header, in the notation the 1986 paper used
-- [ ] The file states which term each subsequent header is responsible for
-- [ ] `grep -ri "soft_shadow\|ambient_occlusion\|fake" include/` is empty, and
-      stays empty
+- [x] The integral appears in the header, in the notation the 1986 paper used
+      — the surface form with Kajiya's `g`, `e` and `p`, and the directional
+      form next to it with the Jacobian that relates them
+- [x] The file states which term each subsequent header is responsible for
+- [x] `grep -ri "soft_shadow\|ambient_occlusion\|fake" include/` is empty, and
+      stays empty — enforced by CI rather than asserted, because the pattern
+      has to live outside the tree it searches. The word "faked" in this
+      file's own interference paragraph was the first thing it caught
+
+## 2026-09-13
+
+Kajiya's own notation is the surface form, I = g[e + integral p I dx''], and the geometry term g is where the shadow lives. The directional form this project computes in is the same equation with dw = cos(theta') dx''/r^2, so g has not gone anywhere - it is absorbed into the measure and its visibility is performed by casting a ray. Both are in the header with the change of variables between them. The grep criterion could not be satisfied by putting the grep in the header: it matched its own statement of itself, and also caught the word 'faked' in the interference paragraph. It is a CI step now, with the pattern outside the tree it searches.
