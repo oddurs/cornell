@@ -40,3 +40,6 @@ comes from an independent estimator.
 - [ ] The measured slope appears in the README, refreshed whenever the
       integrator changes
 - [ ] Russian roulette on and off both give the same slope
+- [ ] Confirm that enabling Russian roulette does not change the N^-1/2
+      slope, which is item 0036's last criterion: the roulette was built to
+      be unbiased and there was no instrument yet to measure a slope with
