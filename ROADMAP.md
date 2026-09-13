@@ -48,7 +48,7 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 
 ## v0.2 — The cosine law
 
-`··········` 0% · 0 of 13 done
+`#·········` 7% · 1 of 14 done
 
 Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by exactly the cosine, and what looks like a property of matte paint is a fact about projected area.
 
@@ -67,6 +67,10 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 - [ ] [`0039`](https://github.com/oddurs/cornell/blob/main/cairn/items/0039-an-area-light-a-triangle-that-emits.md) An area light: a triangle that emits <sup>optics · p2 · light</sup>
 - [ ] [`0040`](https://github.com/oddurs/cornell/blob/main/cairn/items/0040-the-first-path-traced-image-and-the-first-noise.md) The first path-traced image, and the first noise <sup>instrument · p2 · instrument</sup>
 - [ ] [`0041`](https://github.com/oddurs/cornell/blob/main/cairn/items/0041-admit-that-light-travels-unchanged-between-surfaces.md) Admit that light travels unchanged between surfaces <sup>prose · p2 · prose · admission</sup>
+
+### done
+
+- [x] [`0150`](https://github.com/oddurs/cornell/blob/main/cairn/items/0150-the-outputs-the-repository-should-not-keep.md) The outputs the repository should not keep <sup>chore · p2 · build</sup>
 
 ## v0.3 — Eyes have three cone types
 
