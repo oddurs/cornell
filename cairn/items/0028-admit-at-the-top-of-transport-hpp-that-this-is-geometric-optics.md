@@ -2,8 +2,9 @@
 id: 28
 title: Admit, at the top of transport.hpp, that this is geometric optics
 type: prose
-status: planned
+status: done
 milestone: v0.1
+assignee: Oddur Sigurdsson
 labels:
 - admission
 created: 2026-09-13
@@ -24,5 +25,5 @@ they open, not in the third week.
 
 ## Acceptance criteria
 
-- [ ] The list of omissions is a list, not a sentence containing "etc."
-- [ ] Each omission says what it would cost to add
+- [x] The list of omissions is a list, not a sentence containing "etc."
+- [x] Each omission says what it would cost to add
