@@ -248,7 +248,7 @@
 //      red light over metres, so a thing is blue-green at ten metres and
 //      grey-blue at forty, and the colour is a property of the distance
 //      rather than of the water's surface. A renderer without media has to
-//      fake that with a tint, and a tint does not change with depth.
+//      approximate that with a tint, and a tint does not change with depth.
 //
 //      Why a glass of milk is white. Milk is water with fat and protein
 //      droplets in it, each of which is nearly transparent; the white comes
