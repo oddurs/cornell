@@ -1,0 +1,301 @@
+# cairn.toml — the schema for this project's roadmap.
+#
+#   cairn next            what is ready to work on
+#   cairn board           where everything stands
+#   cairn roadmap         the milestones, in order
+#   cairn config          show the resolved schema
+#   cairn check           validate every item against it
+#
+# The types below are not the usual feature/bug/chore. This project does not
+# ship features; it derives results, builds instruments to witness them, checks
+# them against measurements somebody else made, and writes the argument down.
+# The types are those four activities, and a piece of work that is none of them
+# is probably not work this project wants.
+
+format = 3
+
+[project]
+name = "cornell"
+description = "A box in a lab, modelled from first principles in C++23, for no reason."
+dir = "cairn/items"
+id_width = 4
+default_type = "optics"
+default_status = "backlog"
+url = "https://github.com/oddurs/cornell/blob/main"
+
+# ─── Item types ──────────────────────────────────────────────────────────────
+
+[[type]]
+name = "optics"
+icon = "~"
+color = "cyan"
+description = "a piece of physics, and the file it lives in"
+template = """
+## What it is
+
+## What it must derive
+
+<!-- House rule 2. Name the quantities that must fall out rather than be
+     typed. If nothing falls out, this is a chore, not an optics item. -->
+
+## What is not modelled
+
+<!-- House rule 7. An unstated simplification is a lie. -->
+
+## Acceptance criteria
+
+- [ ]
+"""
+
+[[type]]
+name = "instrument"
+icon = ">"
+color = "magenta"
+description = "an app: something you point at the renderer to see what it did"
+template = """
+## What it witnesses
+
+## What it prints
+
+## What it may not do
+
+<!-- No instrument may reach into the physics to make its own job easier. -->
+
+## Acceptance criteria
+
+- [ ]
+"""
+
+[[type]]
+name = "verify"
+icon = "="
+color = "green"
+description = "a physical claim, and the check that earns the right to make it"
+template = """
+## The claim
+
+## How it is checked
+
+## What failure looks like
+
+<!-- A test whose failure mode you cannot describe is a test you will disable. -->
+
+## Acceptance criteria
+
+- [ ]
+"""
+
+[[type]]
+name = "prose"
+icon = "*"
+color = "blue"
+description = "writing: a header's opening argument, the README, the log"
+template = """
+## What it has to explain
+
+## What it must not do
+
+<!-- Never restate the line beneath it. -->
+
+## Acceptance criteria
+
+- [ ]
+"""
+
+[[type]]
+name = "spike"
+icon = "?"
+color = "yellow"
+description = "a question that has to be answered before the work"
+template = """
+## Question
+
+## Why it has to be answered first
+
+## Options
+
+## What would settle it
+
+## Answer
+
+<!-- Filled in when the spike closes. A spike that closes with no answer
+     recorded was a waste of the time it took. -->
+"""
+
+[[type]]
+name = "bug"
+icon = "!"
+color = "red"
+template = """
+## What the image does
+
+## What the physics says it should do
+
+## Reproduction
+
+1.
+"""
+
+[[type]]
+name = "chore"
+icon = "."
+color = "gray"
+
+[[type]]
+name = "milestone"
+groups = "one"
+inverse = "scheduled"
+description = "a release: a state the repository can be read in"
+
+# ─── Statuses ────────────────────────────────────────────────────────────────
+
+[[status]]
+name = "backlog"
+category = "open"
+color = "gray"
+
+[[status]]
+name = "planned"
+category = "open"
+color = "blue"
+
+[[status]]
+name = "doing"
+label = "in progress"
+category = "active"
+color = "yellow"
+
+[[status]]
+name = "blocked"
+category = "active"
+color = "red"
+
+[[status]]
+name = "done"
+category = "done"
+color = "green"
+
+[[status]]
+name = "dropped"
+category = "dropped"
+color = "gray"
+board = false
+
+# ─── Fields ──────────────────────────────────────────────────────────────────
+
+[[field]]
+name = "due"
+kind = "date"
+description = "when a milestone is meant to land"
+
+[[field]]
+name = "part_of"
+kind = "ref"
+target = "*"
+cardinality = "many"
+acyclic = true
+rollup = true
+inverse = "contains"
+description = "a larger piece of work this belongs to"
+
+[[field]]
+name = "priority"
+kind = "enum"
+values = ["p0", "p1", "p2", "p3"]
+default = "p2"
+column = true
+description = "p0 blocks the milestone"
+
+[[field]]
+name = "effort"
+kind = "enum"
+values = ["s", "m", "l", "xl"]
+description = "Rough size, not an estimate"
+
+# The subsystems, which are also very nearly the file list. If a piece of work
+# does not belong to one of these, either it is misconceived or the list is
+# short by one — and adding to this list is a decision, not a convenience.
+[[field]]
+name = "area"
+kind = "enum"
+values = [
+  "units",        # si.hpp — the dictionary of what this program will accept
+  "spectrum",     # light as a function of wavelength, which is what it is
+  "colour",       # cie.hpp, srgb.hpp — the two places tristimulus is allowed
+  "geometry",     # rays, triangles, boxes, the intersection routines
+  "accel",        # the BVH. the one part that is about speed, and says so
+  "transport",    # the rendering equation and the estimators that solve it
+  "bsdf",         # what a surface does to a ray
+  "light",        # emitters, and how you find them from a shading point
+  "camera",       # the aperture, the film, the projection
+  "sampling",     # sequences, warps, densities. every one has a pdf
+  "media",        # what happens between the surfaces
+  "scene",        # cornell.hpp and the loaders
+  "instrument",   # apps/
+  "verification", # the checks that earn the claims
+  "prose",        # README, headers, the log
+  "build",        # the Makefile, the warnings, the fifteen-year guarantee
+]
+column = true
+description = "Subsystem this touches"
+
+# ─── Saved views ─────────────────────────────────────────────────────────────
+
+[[view]]
+name = "now"
+description = "What is actually being worked on"
+filter = "category=active"
+sort = "priority,id"
+
+[[view]]
+name = "next"
+description = "Planned work for the nearest milestone"
+filter = "status=planned"
+sort = "priority,milestone"
+
+[[view]]
+name = "thesis"
+description = "The items the whole project exists to make true"
+filter = "label=thesis,category!=done"
+sort = "milestone,id"
+
+[[view]]
+name = "derivations"
+description = "Things that must fall out rather than be typed in"
+filter = "label=derivation,category!=done"
+sort = "milestone,id"
+
+[[view]]
+name = "honesty"
+description = "Admissions owed: what is not modelled, and what was calibrated"
+filter = "label=admission,category!=done"
+sort = "milestone,id"
+
+[[view]]
+name = "triage"
+description = "Items that still need a milestone or a priority"
+filter = "milestone=,category!=done"
+columns = ["id", "type", "title", "created"]
+
+# ─── Hooks ───────────────────────────────────────────────────────────────────
+# A roadmap that drifts from the items is the rot cairn exists to prevent, and
+# leaving it to discipline is how it starts.
+
+[hooks]
+after-create = "cairn render -q"
+after-change = "cairn render -q"
+after-remove = "cairn render -q"
+
+# ─── Rendered roadmap ────────────────────────────────────────────────────────
+
+[render]
+target = "ROADMAP.md"
+title = "Roadmap"
+group_by = "milestone"
+include = "category!=dropped"
+checkbox = true
+show_ids = true
+progress = true
+group_by_status = true
+link_items = true
+header = "docs/roadmap-intro.md"

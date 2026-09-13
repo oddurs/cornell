@@ -1,0 +1,6 @@
+cornell
+*.ppm
+*.pfm
+*.exr
+.DS_Store
+compile_commands.json
