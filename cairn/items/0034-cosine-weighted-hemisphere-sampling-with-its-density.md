@@ -2,8 +2,9 @@
 id: 34
 title: Cosine-weighted hemisphere sampling, with its density
 type: optics
-status: backlog
+status: done
 milestone: v0.2
+assignee: Oddur Sigurdsson
 labels:
 - derivation
 created: 2026-09-13
@@ -25,5 +26,9 @@ quoted.
 
 ## Acceptance criteria
 
-- [ ] χ² test in v0.5 will exercise this first
-- [ ] The Jacobian appears in the comment
+- [x] χ² test in v0.5 will exercise this first
+- [x] The Jacobian appears in the comment
+
+## 2026-09-13
+
+The item's premise is wrong and the header says so: polar disc sampling with r = sqrt(u) preserves area exactly - chi2 over 16 equal-area annuli, mean 17.1 across 12 streams against 15 dof - and what it destroys is shape. Measured on a 32x32 stratified grid by nearest-neighbour spacing: concentric 0.04419 to 0.04908, ratio 1.11; polar 0.01588 to 0.05121, ratio 3.23. Density checks: the pdf integrates to 1.000122 over the hemisphere, and the samples follow it with chi2 17.5 over 20 cos bins on 19 dof.
