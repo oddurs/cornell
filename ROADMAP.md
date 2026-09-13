@@ -48,13 +48,9 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 
 ## v0.2 — The cosine law
 
-`##########` 93% · 13 of 14 done
+`##########` 100% · 14 of 14 done
 
 Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by exactly the cosine, and what looks like a property of matte paint is a fact about projected area.
-
-### in progress
-
-- [ ] [`0038`](https://github.com/oddurs/cornell/blob/main/cairn/items/0038-shadow-ray-offset-the-waechter-construction-not-an-epsilon.md) Shadow ray offset: the Waechter construction, not an epsilon <sup>optics · p0 · geometry</sup>
 
 ### done
 
@@ -67,6 +63,7 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 - [x] [`0035`](https://github.com/oddurs/cornell/blob/main/cairn/items/0035-the-sampler-reproducible-per-pixel-per-sample-regardless-of-threading.md) The sampler: reproducible per pixel, per sample, regardless of threading <sup>optics · p0 · sampling · foundation</sup>
 - [x] [`0036`](https://github.com/oddurs/cornell/blob/main/cairn/items/0036-russian-roulette-with-the-survival-probability-written-out.md) Russian roulette, with the survival probability written out <sup>optics · p2 · transport · derivation</sup>
 - [x] [`0037`](https://github.com/oddurs/cornell/blob/main/cairn/items/0037-the-path-loop-iterative-rather-than-recursive-and-why.md) The path loop, iterative rather than recursive, and why <sup>optics · p0 · transport</sup>
+- [x] [`0038`](https://github.com/oddurs/cornell/blob/main/cairn/items/0038-shadow-ray-offset-the-waechter-construction-not-an-epsilon.md) Shadow ray offset: the Waechter construction, not an epsilon <sup>optics · p0 · geometry</sup>
 - [x] [`0039`](https://github.com/oddurs/cornell/blob/main/cairn/items/0039-an-area-light-a-triangle-that-emits.md) An area light: a triangle that emits <sup>optics · p2 · light</sup>
 - [x] [`0040`](https://github.com/oddurs/cornell/blob/main/cairn/items/0040-the-first-path-traced-image-and-the-first-noise.md) The first path-traced image, and the first noise <sup>instrument · p2 · instrument</sup>
 - [x] [`0041`](https://github.com/oddurs/cornell/blob/main/cairn/items/0041-admit-that-light-travels-unchanged-between-surfaces.md) Admit that light travels unchanged between surfaces <sup>prose · p2 · prose · admission</sup>
