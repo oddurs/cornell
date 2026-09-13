@@ -211,17 +211,152 @@
 // It also assumes light travels unchanged between surfaces, which is the
 // subject of item 0041 and the next thing this file has to admit.
 //
-// ── What this file will contain ──────────────────────────────────────────
+// ── Solving it: recursion, and then not ──────────────────────────────────
 //
-// The estimator that solves the equation above: the path loop, iterative
-// rather than recursive, carrying a throughput. That is item 0037, and it is
-// the next commit. The equation had to be written down before the thing that
-// solves it, because everything in the loop is a term from it.
+// The equation is recursive — `L` appears on both sides — so the obvious
+// implementation is recursive too, and it is worth writing down once, here,
+// so that the loop below can be read as what it is rather than as a trick.
+//
+//      Radiance radiance(scene, ray, depth) {
+//          hit = scene.intersect(ray);
+//          if (!hit || depth == 0) return black;
+//
+//          [wi, f, pdf] = sample(hit.bsdf, wo);
+//
+//          return emitted(hit, wo)
+//               + f * radiance(scene, Ray(hit.point, wi), depth - 1)
+//                   * cos(theta) / pdf;
+//      }
+//
+// That is correct, it is four lines, and it is the wrong shape. Two reasons,
+// and the second is the one that matters.
+//
+// The small reason is the stack. One frame per bounce, a frame holding a
+// scene reference, a hit record, a basis and a sample, and a path that in a
+// closed white box can run to hundreds of bounces before Russian roulette
+// takes it.
+//
+// The real reason is that everything this project is going to do next needs
+// the recursion's accumulated state to be *a variable it can look at*. In the
+// recursive form the product of all the `f · cos / pdf` factors so far only
+// exists implicitly, spread across the stack, as the pending multiplications
+// in half-finished frames. Russian roulette needs that product to decide a
+// survival probability from it. Multiple importance sampling in v0.8 needs it
+// to weight a light sample against a BSDF sample. A wavefront formulation,
+// if this project ever wants one, needs it in memory rather than on a stack
+// so that a thousand paths can be advanced one bounce at a time.
+//
+// So it is unrolled, the product is carried explicitly as a *throughput*, and
+// the two forms are the same computation with the stack made into a local:
+//
+//      L = 0, throughput = 1
+//      loop:
+//          L += throughput · emitted
+//          throughput *= f · cos / pdf
+//
+// That is the whole transformation. It is mentioned here once and never
+// again.
+//
+// ── The estimator, uncancelled ───────────────────────────────────────────
+//
+// The line `throughput *= f · cos(theta) / pdf` is a Monte Carlo estimate of
+// the integral, and it is written as the ratio it is. For a Lambertian
+// surface sampled cosine-weighted, every factor in it is known in closed
+// form — `f` is `rho/pi`, `cos/pdf` is `pi` — and the whole thing collapses
+// to `rho`. Item 0032 is about why this file does not write `rho`.
+//
+// ── Depth ────────────────────────────────────────────────────────────────
+//
+// `max_depth` below is a *diagnostic* limit and not a physical one. There is
+// no bounce count at which light stops bouncing; the physical termination is
+// Russian roulette, which is unbiased. A path stopped by hitting the depth
+// limit has had its remaining contribution silently discarded, which is bias,
+// which is exactly the thing this project has instruments to detect.
+//
+// It exists so that a bug that produces an infinite path — a normal facing
+// the wrong way, a surface that scatters into itself — terminates rather
+// than hangs. If the limit is ever reached in a correct scene, the roulette
+// is misconfigured, and the default is set high enough that reaching it is
+// evidence of a mistake rather than of a bright room.
 
 #pragma once
 
+#include <cmath>
+
+#include <render/basis.hpp>
+#include <render/ray.hpp>
+#include <render/sampler.hpp>
+#include <render/scene.hpp>
+#include <render/spectrum.hpp>
+#include <render/vec.hpp>
+#include <render/waechter.hpp>
+
 namespace render {
 
-// Deliberately empty. See above, and item 0029.
+// A diagnostic limit. See above: not a number of bounces light is allowed.
+inline constexpr int default_max_depth = 256;
+
+// What a single path contributes, following it until it escapes, is absorbed,
+// or hits the diagnostic limit.
+//
+// The ray is taken by value because the loop advances it; that is the
+// iteration, and handing it back to the caller modified would be a worse lie
+// than copying six doubles.
+inline Radiance radiance(const Scene& scene,
+                         Ray ray,
+                         Sampler& sampler,
+                         int max_depth = default_max_depth) {
+    Radiance carried{};
+
+    // The product of every `f · cos / pdf` so far: the fraction of whatever
+    // this path finds next that will survive back to the eye. One, because
+    // nothing has happened yet.
+    Reflectance throughput{1.0};
+
+    for (int depth = 0; depth < max_depth; ++depth) {
+        const auto hit = scene.intersect(ray);
+
+        // Escaped. There is no environment light in this project yet — v1.2
+        // brings a sky — so a ray that leaves the scene found nothing, which
+        // is different from finding black and happens to look the same.
+        if (!hit) break;
+
+        // `wo` points back the way the ray came, towards where this path's
+        // light is headed. Every direction in `bsdf.hpp` points away from the
+        // surface, and this is the first of them.
+        const Vec3 wo = -ray.direction.vec();
+
+        // The Le term. Emission is one-sided, so a light seen from behind
+        // contributes nothing and the path continues past it.
+        carried += throughput * emitted(*hit, wo);
+
+        const Basis frame = hit->frame();
+        const auto [u, v] = sampler.next2();
+        const BsdfSample scattered = sample(hit->surface->bsdf, frame.to_local(wo), u, v);
+
+        // Absorbed, or the surface refused this direction. Multiplying by
+        // zero and continuing would give the same answer and cost the rest of
+        // the loop.
+        if (scattered.is_black()) break;
+
+        // ── The estimator ────────────────────────────────────────────────
+        //
+        // Written as the ratio, in full, at the point of use. House rule 3,
+        // and item 0032 for the measurement of what refusing to cancel it
+        // costs, which is nothing.
+        const double cos_theta_i = std::fabs(scattered.wi.z);
+        throughput = throughput * (scattered.f * (cos_theta_i / scattered.pdf));
+
+        // Leave along the sampled direction, from a point that is on the
+        // correct side of the surface. The normal handed to the offset is the
+        // one facing the way the new ray is going, which for a reflector is
+        // the outward normal and for anything that transmits — v0.9 — is not.
+        const Vec3 direction = frame.to_world(scattered.wi);
+        const Unit away = dot(hit->normal, direction) > 0.0 ? hit->normal : -hit->normal;
+        ray = Ray{offset_origin(hit->point, away), normalize(direction)};
+    }
+
+    return carried;
+}
 
 } // namespace render
