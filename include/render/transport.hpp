@@ -260,10 +260,51 @@
 // ── The estimator, uncancelled ───────────────────────────────────────────
 //
 // The line `throughput *= f · cos(theta) / pdf` is a Monte Carlo estimate of
-// the integral, and it is written as the ratio it is. For a Lambertian
-// surface sampled cosine-weighted, every factor in it is known in closed
-// form — `f` is `rho/pi`, `cos/pdf` is `pi` — and the whole thing collapses
-// to `rho`. Item 0032 is about why this file does not write `rho`.
+// the integral, and it is written as the ratio it is. For the one material
+// this project currently has, every factor in it is known in closed form, and
+// they all cancel:
+//
+//      f            = rho / pi                  (lambert.hpp)
+//      pdf          = cos(theta) / pi           (warp.hpp)
+//
+//      f · cos / pdf  =  (rho/pi) · cos · (pi / cos)  =  rho
+//
+// So the whole line could read `throughput *= rho`. It would compute the same
+// number — verified below, to the last digit — with one multiply instead of
+// nine and no division. Every tutorial renderer writes it that way, and it is
+// not wrong.
+//
+// It is not written that way here, and the reason is not performance. It is
+// that the three quantities are what v0.8 needs and the product is not.
+// Multiple importance sampling weighs a BSDF sample against a light sample by
+// asking each strategy how likely it would have been to produce the other's
+// direction, and that question is answered with `f` and with `pdf`
+// *separately*. A renderer that collapsed them has not lost a few
+// instructions; it has lost the two quantities, from the design rather than
+// from the code, and gets them back by reopening every material it has
+// written. The collapse is also specific to this pairing — it happens because
+// cosine sampling matches a Lambertian exactly — so every material after this
+// one would have to un-collapse anyway.
+//
+// ── What refusing to cancel costs ────────────────────────────────────────
+//
+// Measured, because "the divides cost nothing the optimiser will not delete"
+// is the kind of claim that ages badly. A 200 × 200 render at 256 samples per
+// pixel, best of three runs, against the same renderer with the line replaced
+// by `throughput *= rho` and `sample` no longer forming `f` or its density at
+// all:
+//
+//      written out    3.757 s    2.73 Mpaths/s    mean radiance 0.410850
+//      collapsed      3.774 s    2.71 Mpaths/s    mean radiance 0.410850
+//
+// The written-out version is half a percent *faster*, which is to say the
+// difference is run-to-run noise and there is no cost to measure. Nine
+// multiplies and a division per bounce disappear beside one ray-scene
+// intersection, and the optimiser has the whole loop in front of it.
+//
+// The identical mean radiance is the other half of the result: the two are
+// the same computation, so the algebra above is right, and the only thing
+// separating them is which quantities survive to be asked about later.
 //
 // ── Depth ────────────────────────────────────────────────────────────────
 //
