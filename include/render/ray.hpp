@@ -43,10 +43,13 @@
 // surface normal at the hit, which this file does not have because there is
 // nothing to hit yet.
 //
-// So v0.1 ships the epsilon and says so. It is replaced in v0.2, by the item
-// named "Shadow ray offset: the Wächter construction, not an epsilon", and
-// the default below is deliberately written as an obviously arbitrary number
-// rather than a plausible one, so that nobody mistakes it for a result.
+// v0.1 shipped the epsilon and said so. It is gone: `waechter.hpp` offsets
+// the ray's *origin* by a number of ulps rather than its parameter by a
+// length, `t_min` below defaults to zero, and there is no constant with units
+// left anywhere in this part of the project.
+//
+// What remains here is the statement of the problem, because the file that
+// solves it is about floating point and this one is about rays.
 //
 // ── What is not modelled ──────────────────────────────────────────────────
 //
@@ -69,14 +72,6 @@
 
 namespace render {
 
-// The placeholder epsilon, in metres, and it is meant to look wrong.
-//
-// A metre is the unit of this project and this is a tenth of a millimetre,
-// chosen because the Cornell box is about two metres across. That is the
-// entire derivation, which is to say there isn't one: it is a number that
-// works for one scene at one scale. See the discussion above, and v0.2.
-inline constexpr double ray_epsilon = 1.0e-4;
-
 struct Ray {
     Vec3 origin{};
     Unit direction{};
@@ -84,7 +79,10 @@ struct Ray {
     // The segment. Everything outside [t_min, t_max] is not this ray's
     // business, and an intersection routine that ignores the bounds is not
     // faster — it is answering a question nobody asked.
-    double t_min = ray_epsilon;
+    // Zero, not an epsilon. A ray that starts on a surface is prevented from
+    // hitting it by where it starts, which is `waechter.hpp`'s job, and not
+    // by refusing to look at the first fraction of a millimetre of it.
+    double t_min = 0.0;
     double t_max = std::numeric_limits<double>::infinity();
 
     constexpr Vec3 at(double t) const { return origin + direction.vec() * t; }
@@ -97,21 +95,19 @@ struct Ray {
     constexpr bool holds(double t) const { return t >= t_min && t <= t_max; }
 };
 
-// A ray that only has to find out whether anything is in the way, and does
-// not care what or where. The bound is the whole difference, and it is set to
-// stop just short of the target so that the light's own geometry does not
-// count as an occluder of itself.
+// There was a `shadow_ray` here, and it is gone rather than ported.
 //
-// The direction is normalised and the distance goes into t_max, which is the
-// arrangement every intersection routine downstream expects: t is a length in
-// metres, so a bound on it is a bound in metres and the comparison means
-// something. The alternative — an unnormalised direction and t running to one
-// — makes this function cheaper and every routine that consumes it wrong
-// about what t is.
-inline Ray shadow_ray(const Vec3& from, const Vec3& to) {
-    const Vec3 offset = to - from;
-    const double distance = length(offset);
-    return Ray{from, normalize(offset), ray_epsilon, distance - ray_epsilon};
-}
+// It built its segment out of two subtractions of `ray_epsilon`, one at each
+// end, which is the construction this milestone exists to delete. It was also
+// never called: at v0.2 a light is found only by paths that happen to wander
+// into it, so nothing in the project asks whether a particular point can see
+// a particular light.
+//
+// The question arrives properly in v0.8 with direct light sampling, and the
+// routine that answers it will need offsetting at *both* ends — away from the
+// surface it leaves and away from the light it lands on — which is a
+// different function from the one that was here. Writing it now, uncalled and
+// untested against a real occlusion, would be guessing at v0.8's interface
+// and leaving a plausible-looking thing for somebody to trust.
 
 } // namespace render
