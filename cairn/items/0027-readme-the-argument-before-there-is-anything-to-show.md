@@ -2,8 +2,9 @@
 id: 27
 title: 'README: the argument, before there is anything to show'
 type: prose
-status: planned
+status: done
 milestone: v0.1
+assignee: Oddur Sigurdsson
 created: 2026-09-13
 updated: 2026-09-13
 priority: p2
@@ -24,5 +25,9 @@ README should say that while explaining what it is going to be.
 
 ## Acceptance criteria
 
-- [ ] The gold claim is stated in the first screen
-- [ ] Every figure quoted is marked with the command that printed it
+- [x] The gold claim is stated in the first screen
+- [x] Every figure quoted is marked with the command that printed it
+
+## 2026-09-13
+
+Both quoted output blocks are checked against the program rather than transcribed: a script re-runs ./cornell and ./cornell render and compares. The 'forty bytes of header' in the milestone description is wrong - the PPM header is 15 bytes and the PFM header is 16 - so the README says fifteen.
