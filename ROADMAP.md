@@ -25,20 +25,15 @@ labelled `thesis` exists to make one of them true or to catch it becoming false.
 
 ## v0.1 — A dark room with a hole in it
 
-`#######···` 64% · 9 of 14 done
+`########··` 79% · 11 of 14 done
 
 The oldest instrument there is: a sealed box, a small aperture, and the observation that light travels in straight lines so a pinhole sorts it by direction.
 
 ### planned
 
-- [ ] [`0025`](https://github.com/oddurs/cornell/blob/main/cairn/items/0025-apps-main-cpp-the-dispatcher-and-the-list-of-witnesses.md) apps/main.cpp: the dispatcher, and the list of witnesses <sup>instrument · p2 · instrument</sup>
 - [ ] [`0026`](https://github.com/oddurs/cornell/blob/main/cairn/items/0026-the-makefile-the-warnings-and-the-fifteen-year-guarantee.md) The Makefile, the warnings, and the fifteen-year guarantee <sup>chore · p2 · build</sup>
 - [ ] [`0027`](https://github.com/oddurs/cornell/blob/main/cairn/items/0027-readme-the-argument-before-there-is-anything-to-show.md) README: the argument, before there is anything to show <sup>prose · p2 · prose</sup>
 - [ ] [`0028`](https://github.com/oddurs/cornell/blob/main/cairn/items/0028-admit-at-the-top-of-transport-hpp-that-this-is-geometric-optics.md) Admit, at the top of transport.hpp, that this is geometric optics <sup>prose · p2 · prose · admission</sup>
-
-### in progress
-
-- [ ] [`0023`](https://github.com/oddurs/cornell/blob/main/cairn/items/0023-film-an-array-of-spectral-accumulators-and-no-colour-anywhere.md) Film: an array of spectral accumulators, and no colour anywhere <sup>optics · p2 · camera</sup>
 
 ### done
 
@@ -48,7 +43,9 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 - [x] [`0020`](https://github.com/oddurs/cornell/blob/main/cairn/items/0020-ray-and-the-self-intersection-problem-stated-but-not-yet-solved.md) Ray, and the self-intersection problem stated but not yet solved <sup>optics · p0 · geometry</sup>
 - [x] [`0021`](https://github.com/oddurs/cornell/blob/main/cairn/items/0021-sphere-intersection-and-the-cancellation-in-the-obvious-quadratic.md) Sphere intersection, and the cancellation in the obvious quadratic <sup>optics · p2 · geometry · derivation</sup>
 - [x] [`0022`](https://github.com/oddurs/cornell/blob/main/cairn/items/0022-the-pinhole-camera-which-is-the-whole-instrument-at-this-stage.md) The pinhole camera, which is the whole instrument at this stage <sup>optics · p2 · camera</sup>
+- [x] [`0023`](https://github.com/oddurs/cornell/blob/main/cairn/items/0023-film-an-array-of-spectral-accumulators-and-no-colour-anywhere.md) Film: an array of spectral accumulators, and no colour anywhere <sup>optics · p2 · camera</sup>
 - [x] [`0024`](https://github.com/oddurs/cornell/blob/main/cairn/items/0024-a-ppm-is-a-short-header-and-some-bytes-write-it-yourself.md) A PPM is a short header and some bytes; write it yourself <sup>instrument · p2 · instrument</sup>
+- [x] [`0025`](https://github.com/oddurs/cornell/blob/main/cairn/items/0025-apps-main-cpp-the-dispatcher-and-the-list-of-witnesses.md) apps/main.cpp: the dispatcher, and the list of witnesses <sup>instrument · p2 · instrument</sup>
 - [x] [`0148`](https://github.com/oddurs/cornell/blob/main/cairn/items/0148-a-direction-is-not-a-vector-and-the-invariant-is-worth-a-type.md) A direction is not a vector, and the invariant is worth a type <sup>optics · p0 · geometry · foundation</sup>
 - [x] [`0149`](https://github.com/oddurs/cornell/blob/main/cairn/items/0149-the-loop-the-work-happens-in-and-the-gate-in-front-of-it.md) The loop the work happens in, and the gate in front of it <sup>chore · p0 · build</sup>
 
