@@ -25,7 +25,7 @@ labelled `thesis` exists to make one of them true or to catch it becoming false.
 
 ## v0.1 — A dark room with a hole in it
 
-`####······` 31% · 4 of 13 done
+`###·······` 29% · 4 of 14 done
 
 The oldest instrument there is: a sealed box, a small aperture, and the observation that light travels in straight lines so a pinhole sorts it by direction.
 
@@ -40,6 +40,7 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 - [ ] [`0026`](https://github.com/oddurs/cornell/blob/main/cairn/items/0026-the-makefile-the-warnings-and-the-fifteen-year-guarantee.md) The Makefile, the warnings, and the fifteen-year guarantee <sup>chore · p2 · build</sup>
 - [ ] [`0027`](https://github.com/oddurs/cornell/blob/main/cairn/items/0027-readme-the-argument-before-there-is-anything-to-show.md) README: the argument, before there is anything to show <sup>prose · p2 · prose</sup>
 - [ ] [`0028`](https://github.com/oddurs/cornell/blob/main/cairn/items/0028-admit-at-the-top-of-transport-hpp-that-this-is-geometric-optics.md) Admit, at the top of transport.hpp, that this is geometric optics <sup>prose · p2 · prose · admission</sup>
+- [ ] [`0148`](https://github.com/oddurs/cornell/blob/main/cairn/items/0148-a-direction-is-not-a-vector-and-the-invariant-is-worth-a-type.md) A direction is not a vector, and the invariant is worth a type <sup>optics · p0 · geometry · foundation</sup>
 
 ### done
 
