@@ -1,7 +1,19 @@
 cornell
+
+# What the program writes. An image is a result, not a source: every one of
+# these is one command away from existing again, and none of them belong in
+# the history.
 *.ppm
 *.pfm
 *.exr
+
+# What a person converts them to in order to look at them, because macOS
+# will not open a PPM. Not writing these down is how `propose` ends up
+# refusing on a dirty tree for a reason that has nothing to do with the work.
+*.png
+*.jpg
+*.jpeg
+
 .DS_Store
 compile_commands.json
 
