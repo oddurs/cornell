@@ -19,6 +19,7 @@
       "Bash(git switch:*)",
       "Bash(git restore:*)",
       "Bash(git fetch:*)",
+      "Bash(git push:*)",
       "Bash(git rebase:*)",
       "Bash(git merge --ff-only:*)",
       "Bash(git worktree:*)",
