@@ -1,0 +1,104 @@
+// main.cpp — the dispatcher, and the list of witnesses.
+//
+// There is no physics in this file and there never will be. It reads `argv`,
+// it decides which instrument was asked for, and it calls it. That is the
+// whole job, and the reason it gets a file to itself is the second half of
+// the job, which is more useful than the first:
+//
+//      `./cornell` with no arguments prints what the instruments are, what
+//      each one witnesses, and which milestone it arrives in.
+//
+// It is the fastest way for somebody who has just cloned this to find out
+// what has been built and what has only been argued for. A README can say
+// anything; this list is printed by the program, so it can only say what the
+// program can do — except for the `built` column, which is a hand-kept `bool`
+// and is therefore the one thing in the table that can lie. It is checkable by
+// running the instrument, which is more than a README offers.
+//
+// The table below is a copy of the roadmap, and house rule 6 says copies rot.
+// It is kept because a list of seven lines is worth the maintenance and
+// because `cairn check` will not catch it drifting; when an instrument moves
+// milestone, it moves here too, in the same commit.
+
+#include <cstdio>
+#include <string_view>
+
+#include "render.hpp"
+
+namespace {
+
+struct Witness {
+    std::string_view name;
+    std::string_view milestone;
+    std::string_view witnesses;
+    bool built;
+};
+
+// In the order they arrive, which is the order a reader should meet them.
+constexpr Witness witnesses[] = {
+    {"render",   "v0.1", "the image itself",                                        true },
+    {"spectrum", "v0.3", "any spectrum in the project, with its chromaticity",      false},
+    {"furnace",  "v0.5", "energy conservation, as a pass/fail you can see",         false},
+    {"chi2",     "v0.5", "that sample() and pdf() describe the same distribution",  false},
+    {"converge", "v0.5", "that RMSE falls as N^-1/2, or the estimator is biased",   false},
+    {"verify",   "v0.5", "every physical claim the project makes, in one run",      false},
+    {"swatch",   "v0.6", "the metals, rendered from nothing but citations",         false},
+};
+
+void print_witnesses() {
+    std::printf("cornell — a box in a lab, modelled from first principles, for no reason.\n\n");
+    for (const Witness& w : witnesses)
+        std::printf("  %-9.*s %-5.*s %-6s %.*s\n",
+                    int(w.name.size()),      w.name.data(),
+                    int(w.milestone.size()), w.milestone.data(),
+                    w.built ? "built" : "",
+                    int(w.witnesses.size()), w.witnesses.data());
+    std::printf("\n  ./cornell render [width] [root]\n");
+    std::printf("  The height is derived from the width and the shape of the film.\n");
+    std::printf("  root is the side of the sample lattice; samples per pixel is its square.\n");
+}
+
+// Digits only, and no error reporting beyond refusing to change the default.
+// An argument parser that accepts "50%%" and silently renders at the default
+// size is worse than one that refuses, but this is v0.1 and the instruments
+// that take real arguments arrive with real parsing in v0.5.
+int integer_or(std::string_view text, int fallback) {
+    int value = 0;
+    for (const char c : text) {
+        if (c < '0' || c > '9') return fallback;
+        value = value * 10 + (c - '0');
+    }
+    return text.empty() || value <= 0 ? fallback : value;
+}
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        print_witnesses();
+        return 0;
+    }
+
+    const std::string_view command{argv[1]};
+
+    if (command == "render") {
+        app::RenderSettings settings;
+        if (argc > 2) settings.width = integer_or(argv[2], settings.width);
+        if (argc > 3) settings.root  = integer_or(argv[3], settings.root);
+        return app::render(settings);
+    }
+
+    for (const Witness& w : witnesses) {
+        if (w.name == command) {
+            std::fprintf(stderr, "cornell: %.*s is not built yet. It arrives in %.*s.\n",
+                         int(w.name.size()), w.name.data(),
+                         int(w.milestone.size()), w.milestone.data());
+            return 1;
+        }
+    }
+
+    std::fprintf(stderr, "cornell: no instrument called '%.*s'.\n\n",
+                 int(command.size()), command.data());
+    print_witnesses();
+    return 1;
+}
