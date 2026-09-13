@@ -39,6 +39,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The second claim, as a check rather than a boast. transport.hpp says
+      # that soft shadows, ambient occlusion and the rest have no code — they
+      # are what solving one integral honestly looks like. The pattern lives
+      # here, outside the tree it searches, because a file that has to be free
+      # of a word cannot contain the grep for it.
+      - name: None of them has any code
+        if: runner.os == 'Linux'
+        run: |
+          if grep -rniE 'soft_shadow|ambient_occlusion|fake' include/ apps/; then
+            echo "::error::transport.hpp claims none of these has any code."
+            exit 1
+          fi
+          echo "Nothing found, which is the claim."
+
       - name: Install gcc
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y g++-14
