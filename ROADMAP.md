@@ -25,7 +25,7 @@ labelled `thesis` exists to make one of them true or to catch it becoming false.
 
 ## v0.1 — A dark room with a hole in it
 
-`###·······` 25% · 3 of 12 done
+`####······` 31% · 4 of 13 done
 
 The oldest instrument there is: a sealed box, a small aperture, and the observation that light travels in straight lines so a pinhole sorts it by direction.
 
@@ -46,6 +46,7 @@ The oldest instrument there is: a sealed box, a small aperture, and the observat
 - [x] [`0017`](https://github.com/oddurs/cornell/blob/main/cairn/items/0017-si-hpp-the-dictionary-of-what-this-program-will-accept.md) si.hpp: the dictionary of what this program will accept <sup>optics · p0 · units · foundation</sup>
 - [x] [`0018`](https://github.com/oddurs/cornell/blob/main/cairn/items/0018-decide-the-spectral-representation-before-anything-depends-on-it.md) Decide the spectral representation before anything depends on it <sup>spike · p0 · spectrum · foundation</sup>
 - [x] [`0019`](https://github.com/oddurs/cornell/blob/main/cairn/items/0019-spectrum-light-as-a-function-of-wavelength-which-is-what-it-is.md) Spectrum: light as a function of wavelength, which is what it is <sup>optics · p0 · spectrum · foundation</sup>
+- [x] [`0149`](https://github.com/oddurs/cornell/blob/main/cairn/items/0149-the-loop-the-work-happens-in-and-the-gate-in-front-of-it.md) The loop the work happens in, and the gate in front of it <sup>chore · p0 · build</sup>
 
 ## v0.2 — The cosine law
 

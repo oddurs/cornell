@@ -4,3 +4,8 @@ cornell
 *.exr
 .DS_Store
 compile_commands.json
+
+# Worktrees live here: one per item, and each one is a full checkout that
+# `git status` in the parent would otherwise report as a pile of untracked
+# files. They are not the work; the pull request is.
+.claude/worktrees/

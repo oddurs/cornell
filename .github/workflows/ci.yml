@@ -1,0 +1,70 @@
+# The second gate, and the authoritative one.
+#
+# The hook in .claude/hooks/build-gate.sh proves the tree builds on the
+# machine that wrote it, with the compiler that machine happens to have, in a
+# working directory that has been accumulating state all afternoon. This
+# proves it builds from a clean checkout, on Linux as well as macOS, and under
+# gcc as well as clang — which is the only portability test this project has
+# and the only way house rule 4's fifteen-year claim gets checked at all.
+#
+# Two front ends disagreeing about a program is almost always the program's
+# fault. Finding out costs one file.
+#
+# What is deliberately not here: `cairn check`. It needs cairn installed,
+# which means a toolchain and a download on every run, to validate files that
+# the local gate already refused to let past. The dependency is not worth it.
+
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux, gcc
+            os: ubuntu-latest
+            cxx: g++-14
+          - name: macos, clang
+            os: macos-latest
+            cxx: clang++
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gcc
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y g++-14
+
+      - name: The compiler
+        run: ${{ matrix.cxx }} --version
+
+      - name: Build, run, and build again with every warning fatal
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: |
+          set -eu
+          # Before apps/main.cpp exists there is nothing to link, and make
+          # says so at some length. The same question the commit gate asks.
+          if ! ls apps/*.cpp >/dev/null 2>&1; then
+            echo "No apps/*.cpp yet: there is nothing to link."
+            exit 0
+          fi
+
+          make CXX="$CXX"
+          ./cornell
+          ./cornell render 120 4
+
+          # `make strict` arrives with the Makefile item; until then there is
+          # no target to call.
+          if grep -q '^strict:' Makefile; then
+            make clean
+            make CXX="$CXX" strict
+          fi

@@ -244,9 +244,14 @@ it.
     Admit that this cannot render a soap film
 
 Not `feat: add fresnel module` and not `fix stuff`. The log is part of the
-piece.
+piece, and it is also the pull request: `.claude/propose` passes the commit
+message straight through, so there is one thing to write rather than two.
 
-Never commit a state that does not build.
+Never commit a state that does not build. That one is not left to
+discipline: a hook runs `make` and `cairn check` in front of every commit,
+and CI builds every pull request from a clean checkout under both gcc and
+clang. The loop the commits are made in — one item, one worktree, one
+branch, one pull request — is written down in `AGENTS.md`.
 
 ---
 
