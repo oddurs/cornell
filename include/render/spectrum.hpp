@@ -167,7 +167,7 @@ public:
     friend constexpr Sampled operator*(double s, Sampled a)         { return a *= s; }
 
     constexpr bool is_black() const {
-        for (int i = 0; i < spectral_samples; ++i) if (v_[i] != 0.0) return false;
+        for (int i = 0; i < spectral_samples; ++i) if (v_[std::size_t(i)] != 0.0) return false;
         return true;
     }
 

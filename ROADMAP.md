@@ -56,7 +56,6 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 
 - [ ] [`0029`](https://github.com/oddurs/cornell/blob/main/cairn/items/0029-transport-hpp-the-rendering-equation-written-down-once.md) transport.hpp: the rendering equation, written down once <sup>optics · p0 · transport · thesis</sup>
 - [ ] [`0030`](https://github.com/oddurs/cornell/blob/main/cairn/items/0030-derive-lambert-s-1-pi-in-the-file-that-uses-it.md) Derive Lambert's 1/pi in the file that uses it <sup>optics · p0 · bsdf · derivation</sup>
-- [ ] [`0031`](https://github.com/oddurs/cornell/blob/main/cairn/items/0031-the-three-method-contract-sample-eval-pdf.md) The three-method contract: sample, eval, pdf <sup>optics · p0 · bsdf · foundation</sup>
 - [ ] [`0032`](https://github.com/oddurs/cornell/blob/main/cairn/items/0032-the-estimator-is-visible-never-cancel-the-pdf-inside-the-sampler.md) The estimator is visible: never cancel the pdf inside the sampler <sup>optics · p0 · transport · thesis</sup>
 - [ ] [`0036`](https://github.com/oddurs/cornell/blob/main/cairn/items/0036-russian-roulette-with-the-survival-probability-written-out.md) Russian roulette, with the survival probability written out <sup>optics · p2 · transport · derivation</sup>
 - [ ] [`0037`](https://github.com/oddurs/cornell/blob/main/cairn/items/0037-the-path-loop-iterative-rather-than-recursive-and-why.md) The path loop, iterative rather than recursive, and why <sup>optics · p0 · transport</sup>
@@ -64,6 +63,10 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 - [ ] [`0039`](https://github.com/oddurs/cornell/blob/main/cairn/items/0039-an-area-light-a-triangle-that-emits.md) An area light: a triangle that emits <sup>optics · p2 · light</sup>
 - [ ] [`0040`](https://github.com/oddurs/cornell/blob/main/cairn/items/0040-the-first-path-traced-image-and-the-first-noise.md) The first path-traced image, and the first noise <sup>instrument · p2 · instrument</sup>
 - [ ] [`0041`](https://github.com/oddurs/cornell/blob/main/cairn/items/0041-admit-that-light-travels-unchanged-between-surfaces.md) Admit that light travels unchanged between surfaces <sup>prose · p2 · prose · admission</sup>
+
+### in progress
+
+- [ ] [`0031`](https://github.com/oddurs/cornell/blob/main/cairn/items/0031-the-three-method-contract-sample-eval-pdf.md) The three-method contract: sample, eval, pdf <sup>optics · p0 · bsdf · foundation</sup>
 
 ### done
 
@@ -112,7 +115,7 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 
 ## v0.5 — It has to be right
 
-`··········` 0% · 0 of 10 done
+`··········` 0% · 0 of 11 done
 
 The instruments of proof, built before the physics they will judge, because a check written after the thing it checks is a check written to pass.
 
@@ -128,6 +131,7 @@ The instruments of proof, built before the physics they will judge, because a ch
 - [ ] [`0069`](https://github.com/oddurs/cornell/blob/main/cairn/items/0069-verify-no-nan-survives-to-the-film-asserted.md) Verify: no NaN survives to the film, asserted <sup>verify · p2 · verification</sup>
 - [ ] [`0070`](https://github.com/oddurs/cornell/blob/main/cairn/items/0070-fireflies-diagnose-rather-than-clamp.md) Fireflies: diagnose rather than clamp <sup>spike · p2 · transport · admission</sup>
 - [ ] [`0071`](https://github.com/oddurs/cornell/blob/main/cairn/items/0071-prose-why-the-instruments-are-built-before-the-physics.md) Prose: why the instruments are built before the physics <sup>prose · p2 · prose</sup>
+- [ ] [`0151`](https://github.com/oddurs/cornell/blob/main/cairn/items/0151-a-brdf-is-not-a-reflectance-and-the-types-do-not-say-so.md) A BRDF is not a reflectance, and the types do not say so <sup>chore · p2 · spectrum</sup>
 
 ## v0.6 — You never type a colour
 
