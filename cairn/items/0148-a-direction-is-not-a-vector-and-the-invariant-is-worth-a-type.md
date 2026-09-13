@@ -2,8 +2,9 @@
 id: 148
 title: A direction is not a vector, and the invariant is worth a type
 type: optics
-status: planned
+status: done
 milestone: v0.1
+assignee: Oddur Sigurdsson
 labels:
 - foundation
 created: 2026-09-13
@@ -55,8 +56,16 @@ that becomes a bug rather than a footnote. Noted so that it is a decision.
 
 ## Acceptance criteria
 
-- [ ] A `Unit` cannot be constructed from arbitrary components without
+- [x] A `Unit` cannot be constructed from arbitrary components without
       passing through `normalize`, and the compiler says so
-- [ ] `Unit` converts to `Vec3` implicitly and costs nothing: the generated
+- [x] `Unit` converts to `Vec3` implicitly and costs nothing: the generated
       code for a `dot` of two units is three multiplies and two adds
-- [ ] The header says why there is no `Point3`
+- [x] The header says why there is no `Point3`
+
+## 2026-09-13
+
+dot(Unit, Unit) on arm64 -O2: one fmul and two fmadd, with no trace of the wrapper. The invariant costs nothing, which was the claim.
+
+## 2026-09-13
+
+Unit::known is consteval, so the negative test is a compile error rather than a convention: passing runtime doubles gives 'call to consteval function is not a constant expression', and Unit{Vec3{...}} gives 'calling a private constructor'.
