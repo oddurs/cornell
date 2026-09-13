@@ -2,10 +2,9 @@
 id: 38
 title: 'Shadow ray offset: the Waechter construction, not an epsilon'
 type: optics
-status: doing
+status: done
 milestone: v0.2
 assignee: Oddur Sigurdsson
-claimed: 2026-09-13
 created: 2026-09-13
 updated: 2026-09-13
 priority: p0
