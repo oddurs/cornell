@@ -35,5 +35,10 @@ the cycle is seconds.
       into a worktree
 - [x] CI builds every pull request under gcc as well as clang, which is the
       only portability test this project has
-- [x] `land` will not treat "no checks configured" as "checks passed"
+- [x] `land` will not treat "no checks configured" as "checks passed", and
+      will not mistake "not queued yet" for either of them
 - [x] The loop is written down where an agent will read it, in `AGENTS.md`
+
+## 2026-09-13
+
+The criterion about 'no checks configured' was ticked and was false. land asked gh for the checks immediately after the push, was told there were none because none had been queued yet, said so and merged; the pull request went green about forty seconds later. It now waits up to 60s for a check to appear and treats a genuine absence as a failure rather than a pass. Separately, gh pr merge --delete-branch tries to check out the base branch locally to clean up, which cannot work when main is held by the main worktree - which is the arrangement the whole loop is built on.

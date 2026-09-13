@@ -26,19 +26,39 @@ gh pr view --json url --jq .url >/dev/null 2>&1 || {
     exit 1
 }
 
-# The authority. If there are no checks configured yet this says so and is
-# not treated as a pass, because "no checks" and "checks passed" are not the
-# same sentence.
+# The authority.
+#
+# A check that has not been queued yet and a repository with no checks at all
+# look identical for the first few seconds after a push, and the first version
+# of this script could not tell them apart: it asked immediately, was told
+# there was nothing, said so, and merged. The pull request it merged went
+# green about forty seconds later, which is the good case. Waiting is the
+# whole job.
+waited=0
+while [ "$waited" -lt 60 ]; do
+    gh pr checks >/dev/null 2>&1 && break
+    sleep 3
+    waited=$((waited + 3))
+done
+
 if gh pr checks >/dev/null 2>&1; then
     gh pr checks --watch --fail-fast || {
         echo "land: the checks did not pass. The pull request stays open." >&2
         exit 1
     }
 else
-    echo "land: no checks are configured on this pull request."
+    # Not a pass. A repository that has lost its CI should stop the loop and
+    # say so, rather than discover it three merges later.
+    echo "land: no checks appeared in ${waited}s. Is .github/workflows intact?" >&2
+    exit 1
 fi
 
-gh pr merge --rebase --delete-branch
+# Not `gh pr merge --delete-branch`: that tries to check out the base branch
+# locally to clean up, and main is checked out in the main worktree, which is
+# the arrangement this whole loop is built on. So the branch is deleted here
+# instead, on both sides, explicitly.
+gh pr merge --rebase
+git push --quiet origin --delete "$branch"
 
 # Bring the main worktree up to what was just merged, by fast-forward only —
 # if that is not a fast-forward, something happened that a script should not
