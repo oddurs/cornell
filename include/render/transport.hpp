@@ -465,29 +465,53 @@
 // exact answer to check against: `L = Le / (1 − rho)`. 200 000 paths from the
 // centre in uniformly random directions, `Le = 1`:
 //
-//      rho      exact       estimated      relative error
-//      0.00     1.0000       1.000000      0
-//      0.25     1.3333       1.333333      2.61e-12
-//      0.50     2.0000       2.000000      1.11e-16
-//      0.75     4.0000       4.000000      1.11e-16
-//      0.90    10.0000      10.000000      3.05e-13
+//      rho    exact     estimated    error       std error   error / se
+//      0.00   1.0000     1.00000     0            0            0
+//      0.25   1.3333     1.33355    +2.17e-04    2.13e-04    +1.02
+//      0.50   2.0000     2.00088    +8.75e-04    1.34e-03    +0.65
+//      0.75   4.0000     4.00314    +3.14e-03    6.06e-03    +0.52
+//      0.90  10.0000     9.98713    −1.29e-02    2.02e-02    −0.64
 //
-// Those are not small errors from a lot of samples. They are *no* error, and
-// the reason is the one `lambert.hpp` measured: cosine-sampling a Lambertian
-// makes `f · cos / pdf` exactly `rho` for every draw, so in a cavity with
-// uniform emission every path returns the same geometric series and the
-// estimator has no variance at all.
+// Every one within about one standard error of the exact answer, at albedos
+// from nothing to nine tenths. That is the transport being right, and the
+// errors being ordinary Monte Carlo noise rather than a systematic lean.
 //
-// Which is worth saying plainly, because it means this test proves the
-// transport is *right* and proves nothing whatever about how it behaves in
-// the presence of noise. The first noisy image is item 0040, and the
-// instrument that measures noise properly is v0.5's.
+// ── What this table used to say, and why it was wrong ────────────────────
 //
-// The residual at `rho = 0.9` is the depth limit, and it is the bias this
-// section warned about arriving on cue: a path truncated at 256 bounces has
-// discarded `rho^256` of its contribution, which for 0.9 is 1.9e-12 — the
-// same size as the error observed. At 0.25 it is 1e-154, and what is left
-// there is ordinary floating-point accumulation.
+// It is worth leaving the correction in the file rather than quietly
+// restating the numbers, because the mistake is the exact one house rule 6
+// exists to catch and it took a code review to find.
+//
+// The first version of this table was measured before Russian roulette
+// existed, and reported relative errors of 1e-12 to 1e-16 with the words
+// "they are *no* error … the estimator has no variance at all". That was true
+// of the code at the time. Cosine-sampling a Lambertian makes `f · cos / pdf`
+// exactly `rho` for every draw, so in a cavity with uniform emission every
+// path returned the identical geometric series and the only residual was the
+// depth limit's truncation.
+//
+// Roulette then changed the model two commits later, and the table was not
+// re-run. The rule is that after any change to the model, every figure gets
+// reconciled against what the program actually prints; this one sat there for
+// four commits claiming an accuracy nine orders of magnitude better than the
+// code could deliver, in the same file as a second table reporting a sample
+// standard deviation of 0.586 — which is flatly incompatible with "no
+// variance at all". The file contradicted itself and nobody noticed, because
+// nobody re-ran it.
+//
+// The physics in the old paragraph survives and is worth keeping straight.
+// The *BSDF* estimator still has zero variance here: `f · cos / pdf` is still
+// exactly `rho` every time. All of the variance in the table above is the
+// roulette's `1/q` scaling — paths that survive carry more weight than they
+// otherwise would — which is precisely the trade the section above measures.
+//
+// Two things went with the correction. The depth limit no longer contributes
+// anything: at `rho = 0.9` a path now ends by coin after about thirteen
+// bounces, and the probability of reaching 256 is around 1e-12, so the
+// truncation bias the old table was accidentally measuring is gone rather
+// than merely smaller. And this test no longer proves only that the transport
+// is right — it now exercises the noise as well, which the old one explicitly
+// could not.
 
 #pragma once
 
