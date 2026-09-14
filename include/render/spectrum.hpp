@@ -102,12 +102,19 @@ public:
     // Every wavelength is drawn uniformly over the visible range, so they all
     // share one density, and it is a density *per metre of wavelength* —
     // which is a strange-looking unit and the correct one.
+    //
+    // Nothing calls this yet, and it stays anyway, which needs saying because
+    // this project does not keep dead code outside `si.hpp`. House rule 3 is
+    // that a sample and the density it was drawn from are one object: this is
+    // the density of the draw `sample()` makes, and `cie.hpp` in v0.3 divides
+    // by it the moment the film starts integrating against the observer. A
+    // `sample` whose density is unreachable is the thing `bsdf.hpp` spends a
+    // page refusing.
     static constexpr double pdf() {
         return 1.0 / (si::lambda_max - si::lambda_min);
     }
 
     constexpr double operator[](int i) const { return lambda_[std::size_t(i)]; }
-    constexpr double hero()          const { return lambda_[0];  }
 
     // True once a path has refracted dispersively and the four wavelengths no
     // longer travel together. Nothing sets it yet; v0.9 does, and the flag is

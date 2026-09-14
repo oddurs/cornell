@@ -97,6 +97,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <concepts>
 #include <render/spectrum.hpp>
 #include <render/vec.hpp>
@@ -138,5 +139,19 @@ concept BsdfModel = requires(const T& bsdf, Vec3 wo, Vec3 wi, double u) {
 constexpr bool same_hemisphere(const Vec3& a, const Vec3& b) {
     return a.z * b.z > 0.0;
 }
+
+// The cosine every shading calculation actually wants.
+//
+// In the local frame the normal is +z, so the cosine of a direction against
+// it is that direction's z and nothing more. It is spelled out here because
+// it was previously a helper in `basis.hpp` taking world-space arguments,
+// which is not the space any caller is in — so both callers ignored it and
+// wrote `std::fabs(w.z)` by hand, and the helper sat unused next to a comment
+// claiming it existed to avoid exactly that.
+//
+// The absolute value is the two-sided part: a surface hit from behind has a
+// negative z, and what the estimator wants is the foreshortening, which does
+// not care which side it was approached from.
+inline double abs_cos_theta(const Vec3& w) { return std::fabs(w.z); }
 
 } // namespace render

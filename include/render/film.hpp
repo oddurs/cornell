@@ -137,24 +137,25 @@ public:
 
     std::uint32_t count(int x, int y, int bin) const { return counts_[index(x, y, bin)]; }
 
-    // How many wavelength samples landed anywhere in this pixel. Four times
-    // the number of paths, give or take nothing: every path deposits four.
-    std::uint32_t samples(int x, int y) const {
-        std::uint32_t total = 0;
-        for (int b = 0; b < film_bins; ++b) total += counts_[index(x, y, b)];
-        return total;
-    }
-
     // The middle of a bin, in metres, because everything in here is in
     // metres. `si::as::nm` is how it gets quoted on a page.
     static constexpr double bin_centre(int bin) {
         return si::lambda_min + (double(bin) + 0.5) * film_bin_width;
     }
 
-    // The bin a wavelength falls in. Clamped at the top because the sampler
-    // can land exactly on `lambda_max` — the wrap in `Wavelengths::sample` is
-    // a `floor`, and a `u` of exactly zero puts the fourth wavelength at the
-    // upper edge — and an index of 47 would be a silent write past the end.
+    // The bin a wavelength falls in, clamped to the range.
+    //
+    // The clamp is a guard and not a fix for a known case: `Wavelengths`
+    // takes `offset - floor(offset)`, which is always in [0, 1), so a
+    // wavelength from the sampler cannot reach `lambda_max` and cannot
+    // produce an index of 47. An earlier version of this comment claimed a
+    // `u` of exactly zero put the fourth wavelength on the upper edge; it
+    // puts it at three quarters of the span.
+    //
+    // It stays because this function is public and nothing stops a caller —
+    // `cie.hpp` in v0.3, walking the observer's tabulated wavelengths — from
+    // handing it a number from outside the range, where the alternative to a
+    // clamp is a silent write past the end of the array.
     static constexpr int bin_of(double lambda) {
         const int bin = int((lambda - si::lambda_min) / film_bin_width);
         return bin < 0 ? 0 : (bin >= film_bins ? film_bins - 1 : bin);

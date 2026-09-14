@@ -17,12 +17,27 @@
 // distinguishable levels however many samples are taken, because the error is
 // deterministic rather than random.
 //
-// `sampler.hpp` exists now, so the samples are jittered, and three things
-// follow. The sample count is no longer required to be a perfect square, so
-// the argument is `--spp` and means what it says. The edge of a shape is no
-// longer stepped — the error has become noise. And the noise falls as the
-// inverse square root of the sample count, which is a claim v0.5 will measure
-// rather than a hope.
+// `sampler.hpp` exists now, so each sample's position inside the pixel is
+// drawn from it, and three things follow. The sample count is no longer
+// required to be a perfect square, so the argument is `--spp` and means what
+// it says. The edge of a shape is no longer stepped — the error has become
+// noise. And the noise falls as the inverse square root of the sample count,
+// which is measured below rather than hoped for.
+//
+// "Drawn from it" and not "jittered", which is a distinction worth keeping.
+// Jitter means stratification plus a random offset within each stratum: the
+// samples are spread evenly *and* randomly. These are neither — each gets an
+// independent `Sampler{pixel, s}` and takes two uniforms, so they are
+// independent and identically distributed, and nothing stops four of them
+// landing in the same corner of the pixel.
+//
+// That is correct and it is unbiased and it converges at N^-½, which is all
+// the N^-½ claim needs. It is simply not the better thing that the word
+// "jittered" would be claiming, and `warp.hpp`'s argument for the concentric
+// disc mapping — that it preserves a stratification which polar mapping
+// destroys — is currently preserving one the renderer never establishes.
+// Stratified and low-discrepancy sequences are `sampler.hpp`'s stated
+// not-modelled, and the honest order is to measure this first.
 //
 // Each sample's stream is addressed by `(pixel index, sample index)`, so the
 // image does not depend on the order the pixels are visited, and will not
@@ -127,17 +142,24 @@ struct RenderSettings {
     int spp = 64;       // any positive integer now, not a square
 };
 
-// Square film, so that the image is square and the box is framed the way it
-// was photographed. `camera.hpp` derives the field of view from these two
+// The film: square, so that the image is square and the box is framed the way
+// it was photographed. `camera.hpp` derives the field of view from these
 // lengths and refuses to be told one directly.
-inline constexpr double film_side = 0.024;      // 24 mm
+inline constexpr double film_width  = 0.024;    // 24 mm
+inline constexpr double film_height = 0.024;    // 24 mm
 inline constexpr double film_distance = 0.018;  // 18 mm, giving 67.4 degrees
 
 // The height is not a setting: it comes from the width and the shape of the
 // film, or the pixels are not square. v0.1 learned that by rendering an
 // ellipse.
+//
+// This was written as `width * film_side / film_side`, which is a constant
+// divided by itself — the identity function wearing a derivation's clothes,
+// and one that would have gone on returning the width if the film ever
+// stopped being square. Two named lengths now, so the expression means what
+// it reads as.
 inline int height_for(int width) {
-    return int(double(width) * film_side / film_side + 0.5);
+    return int(double(width) * film_height / film_width + 0.5);
 }
 
 inline int render(const RenderSettings& settings) {
@@ -150,7 +172,7 @@ inline int render(const RenderSettings& settings) {
     const Camera camera = Camera::look_at(/* eye    */ Vec3{0.0, 1.0, 1.5},
                                           /* target */ Vec3{0.0, 1.0, -1.0},
                                           /* up     */ Vec3{0.0, 1.0, 0.0},
-                                          film_side, film_side, film_distance);
+                                          film_width, film_height, film_distance);
 
     const int height = height_for(settings.width);
     Film film(settings.width, height);
@@ -187,9 +209,11 @@ inline int render(const RenderSettings& settings) {
     // ── Out ──────────────────────────────────────────────────────────────
     //
     // Still one wavelength of forty-seven, because there is still no
-    // observer. 550 nm is where the photopic curve peaks, which is a fact
-    // about eyes and is used here only to choose which of the bins to print.
-    const int bin = Film::bin_of(550.0e-9);
+    // observer. 555 nm is where the photopic curve peaks — `si.hpp` says so
+    // too — and it is a fact about eyes, used here only to choose which of
+    // the bins to print. The bin centred on it is the one this asks for, so
+    // the number printed below and the number named here are the same.
+    const int bin = Film::bin_of(555.0e-9);
 
     std::vector<float> linear(std::size_t(settings.width) * std::size_t(height));
     std::vector<double> preview(linear.size() * 3);

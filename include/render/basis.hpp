@@ -123,12 +123,4 @@ private:
     Vec3 s_{};
 };
 
-// The cosine a shading calculation actually wants, named rather than spelled
-// `dot(n, w)` in twenty places. It is signed: a direction below the surface
-// gives a negative cosine, and that is information rather than an error —
-// `lambert.hpp` uses it to decide that a transmitted direction gets nothing.
-inline double cos_theta(const Unit& normal, const Vec3& direction) {
-    return dot(normal, direction);
-}
-
 } // namespace render
