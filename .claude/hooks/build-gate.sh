@@ -43,9 +43,17 @@ if [ -e "$1" ] && ! out=$(make 2>&1); then
     exit 2
 fi
 
-if ! out=$(cairn check 2>&1); then
-    printf 'Refusing the commit: cairn check fails.\n\n%s\n' "$out" >&2
-    exit 2
+# Not installed and failing are different answers, and conflating them makes
+# a fresh clone unable to commit for a reason that reads like a broken
+# backlog. CI deliberately does not install cairn, so the repository has to
+# build and pass its checks without it.
+if command -v cairn >/dev/null 2>&1; then
+    if ! out=$(cairn check 2>&1); then
+        printf 'Refusing the commit: cairn check fails.\n\n%s\n' "$out" >&2
+        exit 2
+    fi
+else
+    printf 'Note: cairn is not installed, so the roadmap was not validated.\n' >&2
 fi
 
 # transport.hpp claims that soft shadows, ambient occlusion and the rest have

@@ -74,7 +74,7 @@ jobs:
 
           make CXX="$CXX"
           ./cornell
-          ./cornell render 120 4
+          ./cornell render 120 --spp 4
 
           # `make strict` arrives with the Makefile item; until then there is
           # no target to call.
