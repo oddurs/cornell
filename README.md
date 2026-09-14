@@ -39,29 +39,58 @@ model has quietly stopped being true and the project is over.
 
 ## Where it has got to
 
-**v0.1 — a dark room with a hole in it.** It builds, it runs, and it draws a
-sphere on a black background. That is all it draws. There is no shading, no
-colour, no light and no rendering equation yet: a ray leaves the aperture,
-meets a sphere or it does not, and the film records which.
+**v0.2 — the cosine law.** It solves the rendering equation. The image is a
+room with five grey walls and a lamp in the ceiling, and it is extremely
+noisy.
 
 ```
-$ make && ./cornell render
-480 x 320, 64 samples per pixel, 9.8 million rays
-cornell.pfm   linear spectral radiance at 555 nm, in W/m2/sr/m
-cornell.ppm   the same thing through a gamma of 2.2, for looking at
+$ make && ./cornell render 400 --spp 64
+400 x 400, 64 samples per pixel, 10.24 million paths, 3.7 s
+  2.79 million paths per second
+spectral radiance at 555 nm, W/m2/sr/m: mean 0.4090, brightest 12.0000
+cornell.pfm   the linear data, which is what a number may be quoted from
+cornell.ppm   the same, exposed against 1.0 W/m2/sr/m and gamma 2.2,
+              which clips the lamp at 12x over, as a photograph would
 ```
+
+Two of those lines are the machine's rather than the program's — the elapsed
+time and the rate — and will differ on yours. The rest is deterministic: the
+sampler is addressed by pixel and sample index rather than drawn from a
+shared stream, so the mean radiance above is the same number on any machine
+and in any thread count.
 
 Every figure in this file is a copy of something a command printed, and the
 command is shown above it. That is house rule 6, which exists because copies
 rot: the program changes, and a number quoted here without its provenance is a
-claim nobody can check and everybody believes.
+claim nobody can check and everybody believes. This section said v0.1 for
+three commits after v0.2 was finished, and quoted a line the program had
+stopped printing — found by a code review rather than by the rule.
 
-What v0.1 actually settled, which is more than the picture suggests: that the
-inside of this program is SI, that light is carried as four wavelengths rather
-than three colours, that a direction is a type the compiler will not let you
-forge, that an image file is a fifteen-byte header and some numbers, and that
-the discriminant of a ray–sphere intersection has to be rearranged or the
-sphere disappears at a hundred kilometres.
+**The walls are grey, not red and green.** A red wall is a spectrum evaluated
+at the wavelengths a path happens to be carrying, and nothing passes those to
+a BSDF yet. That is v0.3, with `cie.hpp`. Typing a plausible red now would be
+the exact thing the section above promises this project never does.
+
+Three things in the picture have no code, which is the point of the second
+claim. The shadow under the lamp has a soft edge — the penumbra is the lamp's
+solid angle being partly blocked. The corners are darker than the middles of
+the walls — fewer directions from a corner reach the lamp. The ceiling is lit
+at all, facing away from everything, because light reaches it off the floor.
+
+It is noisy because a path finds the lamp only by wandering into it, which
+for a 0.6 m panel in a 2 m room is a few percent of bounces. That is the
+highest-variance arrangement a correct estimator can have, and v0.8 — direct
+light sampling, and Veach's weighting — is what makes it quiet.
+
+What the two milestones actually settled, which is more than the pictures
+suggest: that the inside of this program is SI, that light is carried as four
+wavelengths rather than three colours, that a direction is a type the compiler
+will not let you forge, that an image file is a fifteen-byte header and some
+numbers, that the discriminant of a ray–sphere intersection has to be
+rearranged or the sphere vanishes at a hundred kilometres, that a ray's offset
+is a count of ulps rather than a length — so the same room renders bit for bit
+identically at 1× and at 1000× — and that the estimator is written out as
+`f · cos / pdf` rather than collapsed, which was measured to cost nothing.
 
 ---
 
@@ -139,7 +168,7 @@ cornell — a box in a lab, modelled from first principles, for no reason.
 
 ## The roadmap
 
-133 items across 16 milestones, as Markdown files under `cairn/`, rendered
+135 items across 16 milestones, as Markdown files under `cairn/`, rendered
 into [`ROADMAP.md`](ROADMAP.md). `cairn board` prints where everything stands
 and `cairn next` prints what is ready to work on.
 
