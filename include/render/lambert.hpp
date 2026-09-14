@@ -137,7 +137,7 @@ public:
     // from `sample` on purpose; `bsdf.hpp` says why at length.
     double pdf(const Vec3& wo, const Vec3& wi) const {
         if (!same_hemisphere(wo, wi)) return 0.0;
-        return cosine_hemisphere_pdf(std::fabs(wi.z));
+        return cosine_hemisphere_pdf(abs_cos_theta(wi));
     }
 
     // Draw a direction, and hand back the density it was drawn with.
@@ -153,8 +153,6 @@ public:
 
         return BsdfSample{drawn.direction, eval(wo, drawn.direction), drawn.pdf};
     }
-
-    constexpr const Reflectance& albedo() const { return albedo_; }
 
 private:
     Reflectance albedo_{};

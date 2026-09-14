@@ -130,8 +130,6 @@ class Scene {
 public:
     void add(Surface surface) { surfaces_.push_back(std::move(surface)); }
 
-    const std::vector<Surface>& surfaces() const { return surfaces_; }
-
     // The nearest surface along the ray, if any.
     //
     // Every surface, every time. See above: the BVH is v0.4's, and this loop

@@ -591,7 +591,7 @@ inline Radiance radiance(const Scene& scene,
         // Written as the ratio, in full, at the point of use. House rule 3,
         // and item 0032 for the measurement of what refusing to cancel it
         // costs, which is nothing.
-        const double cos_theta_i = std::fabs(scattered.wi.z);
+        const double cos_theta_i = abs_cos_theta(scattered.wi);
         throughput = throughput * (scattered.f * (cos_theta_i / scattered.pdf));
 
         // ── Russian roulette ─────────────────────────────────────────────

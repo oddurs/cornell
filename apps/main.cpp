@@ -62,12 +62,17 @@ void print_witnesses() {
 // size is worse than one that refuses, but this is v0.1 and the instruments
 // that take real arguments arrive with real parsing in v0.5.
 int integer_or(std::string_view text, int fallback) {
-    int value = 0;
+    // Accumulated in a `long long` and refused past INT_MAX. In an `int` this
+    // was signed overflow — undefined behaviour, which UBSan traps and which
+    // otherwise wraps to whatever it wraps to, so `./cornell render
+    // 99999999999` was accepted as a plausible-looking positive width.
+    long long value = 0;
     for (const char c : text) {
         if (c < '0' || c > '9') return fallback;
         value = value * 10 + (c - '0');
+        if (value > 2147483647LL) return fallback;
     }
-    return text.empty() || value <= 0 ? fallback : value;
+    return text.empty() || value <= 0 ? fallback : int(value);
 }
 
 } // namespace
