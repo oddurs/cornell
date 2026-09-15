@@ -72,7 +72,7 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 
 ## v0.3 — Eyes have three cone types
 
-`####······` 40% · 4 of 10 done
+`#####·····` 45% · 5 of 11 done
 
 A spectrum is a function of wavelength and a monitor has three primaries, and the bridge between them is a table of numbers fitted to seventeen people in London in 1931.
 
@@ -91,6 +91,7 @@ A spectrum is a function of wavelength and a monitor has three primaries, and th
 - [x] [`0043`](https://github.com/oddurs/cornell/blob/main/cairn/items/0043-srgb-hpp-the-transfer-function-exactly-not-2-2.md) srgb.hpp: the transfer function exactly, not 2.2 <sup>optics · p0 · colour</sup>
 - [x] [`0049`](https://github.com/oddurs/cornell/blob/main/cairn/items/0049-verify-d65-lands-on-its-published-chromaticity.md) Verify: D65 lands on its published chromaticity <sup>verify · p0 · verification</sup>
 - [x] [`0154`](https://github.com/oddurs/cornell/blob/main/cairn/items/0154-the-illuminants-because-a-normalisation-is-an-integral-against-one.md) The illuminants, because a normalisation is an integral against one <sup>optics · p0 · colour</sup>
+- [x] [`0155`](https://github.com/oddurs/cornell/blob/main/cairn/items/0155-surfaces-learn-which-wavelengths-they-are-being-asked-about.md) Surfaces learn which wavelengths they are being asked about <sup>optics · p0 · bsdf</sup>
 
 ## v0.4 — The box, as measured
 

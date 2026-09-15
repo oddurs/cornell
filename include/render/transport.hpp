@@ -551,6 +551,7 @@ inline double largest_component(const Reflectance& r) {
 // than copying six doubles.
 inline Radiance radiance(const Scene& scene,
                          Ray ray,
+                         const Wavelengths& lambdas,
                          Sampler& sampler,
                          int max_depth = default_max_depth) {
     Radiance carried{};
@@ -575,11 +576,12 @@ inline Radiance radiance(const Scene& scene,
 
         // The Le term. Emission is one-sided, so a light seen from behind
         // contributes nothing and the path continues past it.
-        carried += throughput * emitted(*hit, wo);
+        carried += throughput * emitted(*hit, wo, lambdas);
 
         const Basis frame = hit->frame();
         const auto [u, v] = sampler.next2();
-        const BsdfSample scattered = sample(hit->surface->bsdf, frame.to_local(wo), u, v);
+        const BsdfSample scattered =
+            sample(hit->surface->bsdf, frame.to_local(wo), lambdas, u, v);
 
         // Absorbed, or the surface refused this direction. Multiplying by
         // zero and continuing would give the same answer and cost the rest of

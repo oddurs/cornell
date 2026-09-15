@@ -85,6 +85,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <render/cie.hpp>
 #include <render/si.hpp>
 #include <render/spectrum.hpp>
 
@@ -101,7 +102,9 @@ public:
         : width_{width},
           height_{height},
           sums_(std::size_t(width) * std::size_t(height) * film_bins, 0.0),
-          counts_(std::size_t(width) * std::size_t(height) * film_bins, 0) {}
+          counts_(std::size_t(width) * std::size_t(height) * film_bins, 0),
+          tristimulus_(std::size_t(width) * std::size_t(height)),
+          paths_(std::size_t(width) * std::size_t(height), 0) {}
 
     int width()  const { return width_;  }
     int height() const { return height_; }
@@ -118,6 +121,22 @@ public:
             sums_[bin]   += value[i];
             counts_[bin] += 1;
         }
+
+        // And the three-channel path, which this file promised in v0.1 would
+        // arrive "as an alternative rather than a replacement, because the
+        // spectrum instrument in v0.5 needs something that still remembers
+        // wavelengths". Both are kept: the bins are the spectrum, and these
+        // three numbers are what a monitor can be shown.
+        //
+        // This is not a second estimate of the same thing at lower fidelity.
+        // Integrating against the observer *at the sampled wavelength* is
+        // unbiased and exact, where reading it off 47 bins afterwards would
+        // carry the binning error — which is why production renderers splat
+        // straight to tristimulus and why this file's memory arithmetic in
+        // v0.1 concluded they were right to.
+        const std::size_t p = std::size_t(y) * std::size_t(width_) + std::size_t(x);
+        tristimulus_[p] += cie::xyz_estimate(lambdas, value);
+        paths_[p] += 1;
     }
 
     // The estimate, written as the ratio rather than as a number somebody
@@ -136,6 +155,14 @@ public:
     }
 
     std::uint32_t count(int x, int y, int bin) const { return counts_[index(x, y, bin)]; }
+
+    // The tristimulus estimate for a pixel: the mean over the paths that
+    // landed in it, written as the ratio for the same reason every other
+    // estimator in this project is.
+    Xyz mean_tristimulus(int x, int y) const {
+        const std::size_t p = std::size_t(y) * std::size_t(width_) + std::size_t(x);
+        return paths_[p] == 0 ? Xyz{} : tristimulus_[p] * (1.0 / double(paths_[p]));
+    }
 
     // The middle of a bin, in metres, because everything in here is in
     // metres. `si::as::nm` is how it gets quoted on a page.
@@ -161,10 +188,11 @@ public:
         return bin < 0 ? 0 : (bin >= film_bins ? film_bins - 1 : bin);
     }
 
-    // Deliberately absent, and this is the list rather than an oversight: no
-    // `rgb()`, no `tonemap()`, no `exposure`, no `gamma`, no `srgb()`, no
-    // `luminance()`. Every one of them is an eye, and the eye arrives in
-    // v0.3, in a file that says whose it was.
+    // Deliberately absent, and still: no `rgb()`, no `tonemap()`, no
+    // `exposure`, no `gamma`, no `srgb()`. The eye has arrived — that is what
+    // `mean_tristimulus` is — but tristimulus is not RGB, and the step from
+    // one to the other belongs to `srgb.hpp`, which is the only file allowed
+    // to take it. A display is not an observer.
 
 private:
     std::size_t index(int x, int y, int bin) const {
@@ -175,6 +203,8 @@ private:
     int height_ = 0;
     std::vector<double> sums_;
     std::vector<std::uint32_t> counts_;
+    std::vector<Xyz> tristimulus_;
+    std::vector<std::uint32_t> paths_;
 };
 
 } // namespace render
