@@ -136,6 +136,7 @@
 #include <render/transport.hpp>
 
 #include "box.hpp"
+#include "gamut.hpp"
 #include "image.hpp"
 #include "tonemap.hpp"
 
@@ -300,11 +301,14 @@ inline int render(const RenderSettings& settings) {
 
             if (rgb.x < 0.0 || rgb.y < 0.0 || rgb.z < 0.0) ++out_of_gamut;
 
-            // The only step in this program that is not physics, and the
-            // last one. cornell.pfm above was written before it.
-            preview[p + 0] = tonemap(rgb.x, settings.curve);
-            preview[p + 1] = tonemap(rgb.y, settings.curve);
-            preview[p + 2] = tonemap(rgb.z, settings.curve);
+            // The two steps that are not physics, and the last two.
+            // cornell.pfm above was written before both, negatives intact,
+            // because a negative component is information about the colour
+            // being outside what a display can show.
+            const Xyz shown = app::into_gamut(rgb, srgb::rgb_to_xyz);
+            preview[p + 0] = tonemap(shown.x, settings.curve);
+            preview[p + 1] = tonemap(shown.y, settings.curve);
+            preview[p + 2] = tonemap(shown.z, settings.curve);
         }
     }
 
