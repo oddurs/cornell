@@ -135,12 +135,14 @@
 
 #include "box.hpp"
 #include "image.hpp"
+#include "tonemap.hpp"
 
 namespace app {
 
 struct RenderSettings {
     int width = 400;    // the height is derived; see below
     int spp = 64;       // any positive integer now, not a square
+    ToneCurve curve = ToneCurve::clip;   // see tonemap.hpp: a choice, not physics
 };
 
 // The film: square, so that the image is square and the box is framed the way
@@ -280,9 +282,11 @@ inline int render(const RenderSettings& settings) {
 
             if (rgb.x < 0.0 || rgb.y < 0.0 || rgb.z < 0.0) ++out_of_gamut;
 
-            preview[p + 0] = rgb.x;
-            preview[p + 1] = rgb.y;
-            preview[p + 2] = rgb.z;
+            // The only step in this program that is not physics, and the
+            // last one. cornell.pfm above was written before it.
+            preview[p + 0] = tonemap(rgb.x, settings.curve);
+            preview[p + 1] = tonemap(rgb.y, settings.curve);
+            preview[p + 2] = tonemap(rgb.z, settings.curve);
         }
     }
 
@@ -302,9 +306,12 @@ inline int render(const RenderSettings& settings) {
                 out_of_gamut, settings.width * height);
     std::printf("cornell.pfm   linear sRGB, three channels, unclipped — the file a\n"
                 "              number may be quoted from\n");
-    std::printf("cornell.ppm   the same, exposed against Y = %.2f and encoded with\n"
-                "              sRGB's transfer function, clipping the lamp %.0fx over\n",
-                reference_luminance, brightest / reference_luminance);
+    std::printf("cornell.ppm   the same, exposed against Y = %.2f, tone mapped with\n"
+                "              '%.*s', and encoded with sRGB's transfer function.\n"
+                "              The lamp is %.0fx over. No figure is quoted from this file.\n",
+                reference_luminance,
+                int(name_of(settings.curve).size()), name_of(settings.curve).data(),
+                brightest / reference_luminance);
     return 0;
 }
 
