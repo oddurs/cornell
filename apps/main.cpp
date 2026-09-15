@@ -57,6 +57,8 @@ void print_witnesses() {
     std::printf("\n  ./cornell render [width] [--spp N]\n");
     std::printf("  ./cornell spectrum [d65|e|x|y|z]\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
+    std::printf("  --lamp d65|a              daylight, or tungsten\n");
+    std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
     std::printf("  The height is derived from the width and the shape of the film.\n");
 }
 
@@ -101,6 +103,8 @@ int main(int argc, char* argv[]) {
             const std::string_view arg{argv[i]};
             if (arg == "--spp" && i + 1 < argc) settings.spp = integer_or(argv[++i], settings.spp);
             else if (arg == "--tonemap" && i + 1 < argc) settings.curve = app::tone_curve_named(argv[++i]);
+            else if (arg == "--lamp" && i + 1 < argc) settings.tungsten = std::string_view{argv[++i]} == "a";
+            else if (arg == "--no-adapt") settings.adapt = false;
             else settings.width = integer_or(arg, settings.width);
         }
         return app::render(settings);

@@ -130,6 +130,8 @@
 #include <render/scene.hpp>
 #include <render/si.hpp>
 #include <render/spectrum.hpp>
+#include <render/bradford.hpp>
+#include <render/illuminant.hpp>
 #include <render/srgb.hpp>
 #include <render/transport.hpp>
 
@@ -143,6 +145,8 @@ struct RenderSettings {
     int width = 400;    // the height is derived; see below
     int spp = 64;       // any positive integer now, not a square
     ToneCurve curve = ToneCurve::clip;   // see tonemap.hpp: a choice, not physics
+    bool tungsten = false;               // light it with illuminant A instead
+    bool adapt = true;                   // see bradford.hpp: also not physics
 };
 
 // The film: square, so that the image is square and the box is framed the way
@@ -186,11 +190,11 @@ inline int height_for(int width) {
 // a constant factor wrong with nobody noticing, because everything in the
 // image is wrong by the same factor. This one is computed from the scene's
 // own lamp, at compile time, and moves if the lamp does.
-inline constexpr double lamp_normalisation = [] {
-    render::cie::Illuminant lit = render::cie::d65;
+inline double lamp_normalisation_for(const render::cie::Illuminant& lamp) {
+    render::cie::Illuminant lit = lamp;
     for (std::size_t i = 0; i < render::cie::samples; ++i) lit.table[i] *= lamp_radiance;
     return render::cie::luminance_normalisation(lit);
-}();
+}
 
 // The exposure, on top of that. A choice, not physics — see item 0046. The
 // lamp is Y = 1 by the normalisation above, and this puts the walls near
@@ -201,7 +205,20 @@ inline constexpr double reference_luminance = 0.2;
 inline int render(const RenderSettings& settings) {
     using namespace render;
 
-    const Scene scene = box();
+    const render::cie::Illuminant& lamp =
+        settings.tungsten ? render::cie::a : render::cie::d65;
+
+    const Scene scene = box(1.0, lamp);
+
+    // Chromatic adaptation, which is a model of an eye rather than of light.
+    // With it off, a tungsten-lit render is orange — and that is the correct
+    // radiometric answer, which is why it is switchable rather than baked in.
+    // See bradford.hpp.
+    const double normalisation = lamp_normalisation_for(lamp);
+
+    const Matrix3 adaptation = settings.adapt
+        ? render::bradford::adapt_to_d65(lamp)
+        : identity3();
 
     // Looking in through the missing front wall, from just outside it, which
     // is where the camera stood in 1984.
@@ -259,7 +276,7 @@ inline int render(const RenderSettings& settings) {
 
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < settings.width; ++x) {
-            const Xyz measured = film.mean_tristimulus(x, y) * lamp_normalisation;
+            const Xyz measured = film.mean_tristimulus(x, y) * normalisation;
             brightest = std::fmax(brightest, measured.y);
             total += measured.y;
 
@@ -269,11 +286,12 @@ inline int render(const RenderSettings& settings) {
             // mid-grey and the lamp clips, which is what a photograph of the
             // real box does. Item 0046 is where this is done properly and
             // marked as the one part of the project with no correct answer.
-            const Xyz exposed = measured * (1.0 / reference_luminance);
+                    const Xyz exposed =
+                apply(adaptation, measured * (1.0 / reference_luminance));
 
             // Tristimulus to the display's primaries, through the matrix
             // srgb.hpp derived rather than pasted.
-            const Xyz rgb = srgb::apply(srgb::xyz_to_rgb, exposed.x, exposed.y, exposed.z);
+            const Xyz rgb = apply(srgb::xyz_to_rgb, exposed.x, exposed.y, exposed.z);
 
             const std::size_t p = (std::size_t(y) * std::size_t(settings.width) + std::size_t(x)) * 3;
             linear[p + 0] = float(rgb.x);

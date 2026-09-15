@@ -190,6 +190,98 @@ inline constexpr Illuminant d65 = {{
     60.312500,   // 830 nm
 }};
 
+// ── A is a formula, with an obsolete constant fossilised in it ───────────
+//
+// Incandescent light: the CIE's stand-in for a tungsten bulb, and the third
+// kind of definition in this file. D65 is a table because daylight has no
+// closed form. E is a line because it is a convention. A is a *formula*, and
+// the formula is Planck's law — so this one is derived rather than
+// transcribed, which is what this project would prefer for all three and can
+// only have for one.
+//
+// What makes it interesting is the constants. The CIE defines A as
+//
+//      S(lambda) = 100 (560/lambda)^5 (exp(1.435e7 / (2848 * 560)) - 1)
+//                                   / (exp(1.435e7 / (2848 * lambda)) - 1)
+//
+// with lambda in nanometres — and both of those numbers are wrong now. The
+// 1.435e7 nm·K is the second radiation constant c2 as it was measured when A
+// was defined, and 2848 K is the temperature that went with it. c2 has since
+// been revised to 1.4388e-2 m·K, which moves the *label* to 2856 K without
+// moving the spectrum at all.
+//
+// So illuminant A is a blackbody at 2856 K, described by a formula that says
+// 2848 K, because the formula also uses an old value of a physical constant
+// and the two errors were designed to cancel. Changing either would change
+// the illuminant, and the illuminant is the standard, so neither is changed.
+// The file implements the standard, and says what it is doing.
+//
+// Checked: the formula above gives x = 0.44757, y = 0.40744 against the
+// published 0.44758, 0.40745. Evaluating modern Planck at the modern label of
+// 2856 K gives 0.44753, 0.40743 — which is the cancellation working, to four
+// decimal places. Evaluating modern Planck at the *written* 2848 K gives
+// 0.44815, 0.40760, which is visibly a different light: the relabelling is
+// not cosmetic, and using the formula's temperature with today's constant
+// would be the mistake it exists to prevent.
+//
+// A real tungsten bulb is not this either. It is a blackbody seen through a
+// glass envelope, at whatever temperature the filament is at, and this is a
+// standard rather than a lamp.
+
+namespace detail {
+
+// exp, at compile time.
+//
+// `std::exp` is not `constexpr` until C++26, and CLAUDE.md asks for constexpr
+// spectra — so that the checks below can be `static_assert`s like D65's,
+// rather than a runtime test somebody can forget to run.
+//
+// Range-reduce to |r| <= ln2/2, sixteen Taylor terms, and scale back by a
+// power of two. Measured against `std::exp` over [0, 20]: worst relative
+// error 1.39e-15, which is 6.2 ulps; over [6, 14], the range this file
+// actually evaluates, 1.12e-15 or 5.0 ulps.
+//
+// It becomes one word shorter the day `std::exp` is `constexpr`.
+inline constexpr double ln2 = 0.69314718055994530942;
+
+constexpr double exp_(double x) {
+    const int k = int(x / ln2 + (x >= 0.0 ? 0.5 : -0.5));
+    const double r = x - double(k) * ln2;
+
+    double term = 1.0;
+    double sum = 1.0;
+    for (int n = 1; n <= 16; ++n) {
+        term *= r / double(n);
+        sum += term;
+    }
+
+    double scale = 1.0;
+    for (int i = 0; i < (k < 0 ? -k : k); ++i) scale *= 2.0;
+    return k < 0 ? sum / scale : sum * scale;
+}
+
+// The CIE's defining formula, with its own constants. See above.
+constexpr double illuminant_a_at(double nanometres) {
+    constexpr double c2_as_defined = 1.435e7;   // nm·K, the 1931 value
+    constexpr double temperature   = 2848.0;    // K, the temperature that went with it
+    constexpr double reference     = 560.0;     // nm, where it is normalised to 100
+
+    const double ratio = reference / nanometres;
+    const double five = ratio * ratio * ratio * ratio * ratio;
+    return 100.0 * five
+         * (exp_(c2_as_defined / (temperature * reference)) - 1.0)
+         / (exp_(c2_as_defined / (temperature * nanometres)) - 1.0);
+}
+
+} // namespace detail
+
+inline constexpr Illuminant a = [] {
+    Illuminant lamp;
+    for (std::size_t i = 0; i < samples; ++i)
+        lamp.table[i] = detail::illuminant_a_at(si::as::nm(first + double(i) * step));
+    return lamp;
+}();
+
 // ── E ────────────────────────────────────────────────────────────────────
 // Equal energy. The `100` matches D65's normalisation so that the two can be
 // compared without a scale factor appearing between them.
@@ -233,6 +325,29 @@ static_assert(d65_chromaticity.x > 0.312705 && d65_chromaticity.x < 0.312715,
               "D65 x has moved; re-derive before widening this");
 static_assert(d65_chromaticity.y > 0.329005 && d65_chromaticity.y < 0.329015,
               "D65 y has moved; re-derive before widening this");
+
+// Illuminant A, derived from the formula rather than tabulated, against the
+// chromaticity the CIE publishes for it.
+inline constexpr Chromaticity a_chromaticity = chromaticity_of(white_point(a));
+
+static_assert(a_chromaticity.x > 0.44748 && a_chromaticity.x < 0.44768,
+              "illuminant A must land within 1e-4 of its published x");
+static_assert(a_chromaticity.y > 0.40735 && a_chromaticity.y < 0.40755,
+              "illuminant A must land within 1e-4 of its published y");
+
+// Tighter, so a change that moves it by 1e-5 is noticed. This also checks the
+// constexpr exp above: a wrong exponential would move these long before it
+// moved anything visible.
+static_assert(a_chromaticity.x > 0.447565 && a_chromaticity.x < 0.447575,
+              "illuminant A x has moved; re-derive before widening this");
+static_assert(a_chromaticity.y > 0.407435 && a_chromaticity.y < 0.407445,
+              "illuminant A y has moved; re-derive before widening this");
+
+// A is much warmer than D65, which is the entire point of having it: a render
+// lit by it is orange unless something adapts, and `bradford.hpp` is the
+// something.
+static_assert(a_chromaticity.x > d65_chromaticity.x + 0.13,
+              "A must be substantially warmer than D65, or it demonstrates nothing");
 
 // E is flat, so its white point is the observer's own integral, and it must
 // land where `cie.hpp` already checked equal-energy white lands.

@@ -112,6 +112,73 @@ constexpr Chromaticity chromaticity_of(const Xyz& c) {
     return sum > 0.0 ? Chromaticity{c.x / sum, c.y / sum} : Chromaticity{};
 }
 
+// ── A 3 x 3, because tristimulus keeps needing one ───────────────────────
+//
+// Written out rather than pulled in: house rule 4 has no linear algebra
+// library in it, and a matrix that exists to be inverted once at compile time
+// does not need an abstraction. It lives here rather than in `srgb.hpp`,
+// where it started, because `bradford.hpp` needs one too and a transform
+// between illuminants should not depend on a display standard.
+
+struct Matrix3 {
+    std::array<std::array<double, 3>, 3> m{};
+
+    constexpr const std::array<double, 3>& operator[](std::size_t r) const { return m[r]; }
+    constexpr std::array<double, 3>&       operator[](std::size_t r)       { return m[r]; }
+};
+
+// Nine numbers in reading order. `Matrix3` wraps an array of arrays, so the
+// aggregate form needs three levels of braces and gets miscounted; this reads
+// like the matrix on the page.
+constexpr Matrix3 matrix3(double a, double b, double c,
+                          double d, double e, double f,
+                          double g, double h, double i) {
+    Matrix3 out;
+    out[0] = {a, b, c};
+    out[1] = {d, e, f};
+    out[2] = {g, h, i};
+    return out;
+}
+
+constexpr Matrix3 identity3() { return matrix3(1, 0, 0, 0, 1, 0, 0, 0, 1); }
+
+constexpr Xyz apply(const Matrix3& a, double x, double y, double z) {
+    return Xyz{a[0][0] * x + a[0][1] * y + a[0][2] * z,
+               a[1][0] * x + a[1][1] * y + a[1][2] * z,
+               a[2][0] * x + a[2][1] * y + a[2][2] * z};
+}
+
+constexpr Xyz apply(const Matrix3& a, const Xyz& v) { return apply(a, v.x, v.y, v.z); }
+
+constexpr Matrix3 multiply(const Matrix3& a, const Matrix3& b) {
+    Matrix3 out;
+    for (std::size_t r = 0; r < 3; ++r)
+        for (std::size_t c = 0; c < 3; ++c)
+            out[r][c] = a[r][0] * b[0][c] + a[r][1] * b[1][c] + a[r][2] * b[2][c];
+    return out;
+}
+
+constexpr double determinant(const Matrix3& a) {
+    return a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
+         - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+         + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+}
+
+constexpr Matrix3 inverse(const Matrix3& a) {
+    const double d = determinant(a);
+    Matrix3 out;
+    out[0][0] = (a[1][1] * a[2][2] - a[1][2] * a[2][1]) / d;
+    out[0][1] = (a[0][2] * a[2][1] - a[0][1] * a[2][2]) / d;
+    out[0][2] = (a[0][1] * a[1][2] - a[0][2] * a[1][1]) / d;
+    out[1][0] = (a[1][2] * a[2][0] - a[1][0] * a[2][2]) / d;
+    out[1][1] = (a[0][0] * a[2][2] - a[0][2] * a[2][0]) / d;
+    out[1][2] = (a[0][2] * a[1][0] - a[0][0] * a[1][2]) / d;
+    out[2][0] = (a[1][0] * a[2][1] - a[1][1] * a[2][0]) / d;
+    out[2][1] = (a[0][1] * a[2][0] - a[0][0] * a[2][1]) / d;
+    out[2][2] = (a[0][0] * a[1][1] - a[0][1] * a[1][0]) / d;
+    return out;
+}
+
 namespace cie {
 
 // ── The grid the CIE publishes on ────────────────────────────────────────
