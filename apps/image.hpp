@@ -37,14 +37,17 @@
 // `-1.0` below rather than detected, because a file that lies about its own
 // byte order is worse than a file that only supports one.
 //
-// ── The transfer function here is not sRGB, and the difference is visible ─
+// ── The transfer function is sRGB's, now that there is one ───────────────
 //
-// House rule 1 says the transfer function belongs to `srgb.hpp`, which
-// arrives in v0.3. Until it does, the 8-bit preview raises the value to the
-// power 1/2.2, which is the thing everybody means by "gamma" and is not what
-// sRGB does. sRGB is a linear segment below 0.0031308 and a 1/2.4 power with
-// an offset above it, and the two differ by up to **nine 8-bit codes**, all
-// of it in the shadows:
+// House rule 1 says the transfer function belongs to `srgb.hpp`. Until v0.3
+// there was no such file, so this one raised the value to the power 1/2.2 —
+// the thing everybody means by "gamma", and not what sRGB does — and said
+// that v0.3 would delete the parameter rather than tune it. It has.
+//
+// The measurement that made the placeholder uncomfortable is kept here
+// because it is the argument for the swap. sRGB is a linear segment below
+// 0.0031308 spliced to a 1/2.4 power with an offset, and the two differ by up
+// to **nine 8-bit codes**, all of it in the shadows:
 //
 //      linear      sRGB      gamma 2.2     difference
 //      0.001          3            11             −8
@@ -57,9 +60,10 @@
 //
 // Nine codes is not subtle. It is the difference between a dark corner of the
 // Cornell box reading as black and reading as visibly lit, which is the exact
-// measurement v1.0 exists to make. So the preview is a preview: it is labelled
-// one here, no figure is ever quoted from it, and v0.3 deletes the `gamma`
-// parameter below rather than tuning it.
+// measurement v1.0 exists to make.
+//
+// It is still a preview and no figure is ever quoted from it — eight bits and
+// a clip are not a measurement — but it is no longer approximate on purpose.
 
 #pragma once
 
@@ -68,6 +72,8 @@
 #include <cmath>
 #include <string>
 #include <vector>
+
+#include <render/srgb.hpp>
 
 namespace app {
 
@@ -102,7 +108,7 @@ inline bool write_pfm(const std::string& path, int width, int height,
 // it; that clipping is the reason the PFM exists and the reason no figure
 // comes from here.
 inline bool write_ppm(const std::string& path, int width, int height,
-                      const std::vector<double>& rgb, double gamma = 2.2) {
+                      const std::vector<double>& rgb) {
     if (int(rgb.size()) != width * height * 3) return false;
 
     std::FILE* out = std::fopen(path.c_str(), "wb");
@@ -115,8 +121,7 @@ inline bool write_ppm(const std::string& path, int width, int height,
         for (std::size_t i = 0; i < row.size(); ++i) {
             const double linear = rgb[std::size_t(y) * row.size() + i];
             const double clipped = linear < 0.0 ? 0.0 : (linear > 1.0 ? 1.0 : linear);
-            const double encoded = std::pow(clipped, 1.0 / gamma);
-            row[i] = std::uint8_t(encoded * 255.0 + 0.5);
+            row[i] = std::uint8_t(render::srgb::encode(clipped) * 255.0 + 0.5);
         }
         std::fwrite(row.data(), 1, row.size(), out);
     }
