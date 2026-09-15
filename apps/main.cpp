@@ -24,6 +24,7 @@
 #include <string_view>
 
 #include "render.hpp"
+#include "spectrum.hpp"
 
 namespace {
 
@@ -37,7 +38,7 @@ struct Witness {
 // In the order they arrive, which is the order a reader should meet them.
 constexpr Witness witnesses[] = {
     {"render",   "v0.1", "the image itself",                                        true },
-    {"spectrum", "v0.3", "any spectrum in the project, with its chromaticity",      false},
+    {"spectrum", "v0.3", "any spectrum in the project, with its chromaticity",      true },
     {"furnace",  "v0.5", "energy conservation, as a pass/fail you can see",         false},
     {"chi2",     "v0.5", "that sample() and pdf() describe the same distribution",  false},
     {"converge", "v0.5", "that RMSE falls as N^-1/2, or the estimator is biased",   false},
@@ -54,6 +55,7 @@ void print_witnesses() {
                     w.built ? "built" : "",
                     int(w.witnesses.size()), w.witnesses.data());
     std::printf("\n  ./cornell render [width] [--spp N]\n");
+    std::printf("  ./cornell spectrum [d65|e|x|y|z]\n");
     std::printf("  The height is derived from the width and the shape of the film.\n");
 }
 
@@ -84,6 +86,10 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string_view command{argv[1]};
+
+    if (command == "spectrum") {
+        return app::spectrum(argc > 2 ? std::string_view{argv[2]} : std::string_view{"d65"});
+    }
 
     if (command == "render") {
         app::RenderSettings settings;
