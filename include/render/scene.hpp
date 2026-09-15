@@ -69,6 +69,8 @@
 
 #include <render/basis.hpp>
 #include <render/bsdf.hpp>
+#include <render/cie.hpp>
+#include <render/illuminant.hpp>
 #include <render/lambert.hpp>
 #include <render/ray.hpp>
 #include <render/sphere.hpp>
@@ -80,24 +82,36 @@ namespace render {
 // What a surface is. The geometry the renderer can intersect.
 using Shape = std::variant<Sphere, Triangle>;
 
-// What a surface does to light. One model so far; the variant is the shape of
-// the decision rather than a hedge, and adding Fresnel in v0.6 is an entry in
-// this list and a `static_assert` that passes.
-using Bsdf = std::variant<Lambert>;
+// What a surface does to light. Two alternatives now, and they are the same
+// model over different spectra rather than two models — a grey wall and a
+// wall whose reflectance came off a spectrometer differ in what they are made
+// of, not in how they scatter.
+using GreyLambert = Lambert<Flat>;
+using SpectralLambert = Lambert<cie::Illuminant>;
 
-static_assert(BsdfModel<Lambert>,
+using Bsdf = std::variant<GreyLambert, SpectralLambert>;
+
+static_assert(BsdfModel<GreyLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<SpectralLambert>,
+              "every alternative of Bsdf must satisfy the three-method contract");
+
+// What a surface emits. Same argument: an emitter is a spectrum and a scale,
+// because a lamp's colour and its brightness are different facts about it.
+using Emission = std::variant<Flat, cie::Illuminant>;
 
 // ── Dispatch ─────────────────────────────────────────────────────────────
 // Free functions rather than members, so that a model is a plain struct that
 // knows nothing about the variant it ends up in.
 
-inline BsdfSample sample(const Bsdf& bsdf, const Vec3& wo, double u, double v) {
-    return std::visit([&](const auto& model) { return model.sample(wo, u, v); }, bsdf);
+inline BsdfSample sample(const Bsdf& bsdf, const Vec3& wo,
+                         const Wavelengths& lambdas, double u, double v) {
+    return std::visit([&](const auto& model) { return model.sample(wo, lambdas, u, v); }, bsdf);
 }
 
-inline Reflectance eval(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi) {
-    return std::visit([&](const auto& model) { return model.eval(wo, wi); }, bsdf);
+inline Reflectance eval(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi,
+                        const Wavelengths& lambdas) {
+    return std::visit([&](const auto& model) { return model.eval(wo, wi, lambdas); }, bsdf);
 }
 
 inline double pdf(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi) {
@@ -109,9 +123,16 @@ inline double pdf(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi) {
 struct Surface {
     Shape shape;
     Bsdf bsdf;
-    Radiance emission{};    // black unless this is a light
 
-    bool emits() const { return !emission.is_black(); }
+    // A spectrum and a scale. The scale is spectral radiance in
+    // W·m⁻²·sr⁻¹·m⁻¹ at the wavelength where the spectrum is 1; for a
+    // tabulated illuminant normalised to 100 at 560 nm, that is a hundredth
+    // of the radiance at 560 nm, which is a strange-sounding unit and the one
+    // the tables come in.
+    Emission emission = Flat{0.0};
+    double radiance = 0.0;
+
+    bool emits() const { return radiance > 0.0; }
 };
 
 // Everything the integrator needs to know about where a path landed.
@@ -166,9 +187,18 @@ private:
 // `wo` points away from the surface, towards where the light is going. The
 // cosine against the outward normal is therefore positive exactly when the
 // viewer is on the emitting side.
-inline Radiance emitted(const Interaction& hit, const Vec3& wo) {
+inline Radiance emitted(const Interaction& hit, const Vec3& wo,
+                        const Wavelengths& lambdas) {
     if (!hit.surface->emits()) return Radiance{};
-    return dot(hit.normal, wo) > 0.0 ? hit.surface->emission : Radiance{};
+    if (dot(hit.normal, wo) <= 0.0) return Radiance{};
+
+    // The emission spectrum, evaluated at the wavelengths this path carries.
+    return std::visit([&](const auto& spectrum) {
+        Radiance out;
+        for (int i = 0; i < spectral_samples; ++i)
+            out[i] = spectrum.at(lambdas[i]) * hit.surface->radiance;
+        return out;
+    }, hit.surface->emission);
 }
 
 } // namespace render

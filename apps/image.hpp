@@ -79,9 +79,9 @@ namespace app {
 
 // ── PFM: linear float, and the format every instrument reads ──────────────
 //
-// One channel, `Pf`. Three would be `PF` and the only difference is the tag
-// and the stride; it is not written until something has three channels to
-// put in it, which is v0.3.
+// One channel is `Pf` and three are `PF`, and the only difference is the tag
+// and the stride, exactly as this file predicted in v0.1. v0.3 brought the
+// three channels.
 inline bool write_pfm(const std::string& path, int width, int height,
                       const std::vector<float>& values) {
     if (int(values.size()) != width * height) return false;
@@ -97,6 +97,31 @@ inline bool write_pfm(const std::string& path, int width, int height,
     for (int y = height - 1; y >= 0; --y)
         std::fwrite(values.data() + std::size_t(y) * std::size_t(width),
                     sizeof(float), std::size_t(width), out);
+
+    return std::fclose(out) == 0;
+}
+
+// Three channels, interleaved. `PF` rather than `Pf`, and otherwise identical
+// — including the bottom-up row order, which is still the thing the two
+// formats disagree about.
+//
+// Negative values are written out as they are. A saturated spectral colour
+// has an sRGB component below zero, and clipping it here would destroy the
+// evidence in the one file that exists to preserve it; item 0047 is the
+// decision about what a *display* should do with such a colour, and this is
+// not a display.
+inline bool write_pfm_rgb(const std::string& path, int width, int height,
+                          const std::vector<float>& values) {
+    if (int(values.size()) != width * height * 3) return false;
+
+    std::FILE* out = std::fopen(path.c_str(), "wb");
+    if (!out) return false;
+
+    std::fprintf(out, "PF\n%d %d\n-1.0\n", width, height);
+
+    for (int y = height - 1; y >= 0; --y)
+        std::fwrite(values.data() + std::size_t(y) * std::size_t(width) * 3,
+                    sizeof(float), std::size_t(width) * 3, out);
 
     return std::fclose(out) == 0;
 }

@@ -64,6 +64,7 @@
 
 #include <array>
 #include <cmath>
+#include <concepts>
 #include <cstddef>
 #include <render/si.hpp>
 
@@ -194,6 +195,32 @@ public:
 private:
     std::array<double, spectral_samples> v_{};
 };
+
+// ── What a material is made of ───────────────────────────────────────────
+//
+// A spectrum, in the sense the materials use, is anything that can answer one
+// question: what is your value at this wavelength. A flat grey answers with a
+// constant, a measured wall answers from a table, a fitted upsample of an RGB
+// answers from three coefficients.
+//
+// It is a concept rather than a base class for the usual reason — there is no
+// dispatch to pay for, the set is closed, and a material that holds one is a
+// template over it, which compiles to the arithmetic and nothing else.
+template <class T>
+concept SpectralValue = requires(const T& s, double lambda) {
+    { s.at(lambda) } -> std::same_as<double>;
+};
+
+// The simplest one, and the only one this project needed for two milestones:
+// the same value at every wavelength. A grey wall, and an honest description
+// of one — real grey paint is not flat, which is item 0053's problem.
+struct Flat {
+    double value = 0.0;
+
+    constexpr double at(double) const { return value; }
+};
+
+static_assert(SpectralValue<Flat>);
 
 struct RadianceTag;     // L, W·m⁻²·sr⁻¹·m⁻¹  — what a path carries
 struct ReflectanceTag;  // unitless in [0,1]  — what a surface keeps

@@ -74,6 +74,11 @@ struct Illuminant {
     constexpr double at(double lambda) const { return interpolate(table, lambda); }
 };
 
+// It satisfies `SpectralValue`, so a lamp can emit one directly rather than
+// being handed four numbers chosen at scene-build time. That is the whole of
+// what the v0.3 signature change buys on the emission side.
+static_assert(SpectralValue<Illuminant>);
+
 // The tristimulus value of an illuminant seen directly — that is, of a
 // perfect white reflector under it. This is the "white point" everything
 // downstream is relative to.

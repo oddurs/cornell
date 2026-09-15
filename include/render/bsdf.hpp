@@ -71,6 +71,28 @@
 // model that does not satisfy all three methods fails to compile at the point
 // it is added to the set, with an error that names the method it is missing.
 //
+// ── Every method takes the wavelengths, and that is the v0.3 change ──────
+//
+// A reflectance is a function of wavelength. `Reflectance` has been able to
+// hold one since v0.1 — it is four numbers — but the four wavelengths differ
+// from path to path, so a surface cannot say what it reflects without being
+// told which wavelengths it is being asked about.
+//
+// For two milestones nothing needed to ask. Every material was grey, every
+// emitter was flat, and the four components of every `Reflectance` were the
+// same number, so the question never came up. It comes up the moment a wall
+// is red, and a red wall is the object this project exists to render.
+//
+// So all three methods take a `Wavelengths`. It is the change `box.hpp`
+// predicted when it explained why its walls were grey and refused to type a
+// plausible red two milestones early, and it is why that refusal cost
+// nothing: the walls were always going to arrive as spectra, and this is the
+// signature they arrive through.
+//
+// The alternative — a material that carries a fixed `Reflectance` chosen when
+// the scene was built — is what a renderer does when it starts in RGB, and it
+// cannot represent a measured spectrum at all.
+//
 // ── Conventions, stated once ─────────────────────────────────────────────
 //
 // Both directions are in the local frame from `basis.hpp`, where the surface
@@ -125,11 +147,19 @@ struct BsdfSample {
 // model missing `pdf` does not fail at the call site months later, it fails
 // where it is declared, and the diagnostic names the method.
 template <class T>
-concept BsdfModel = requires(const T& bsdf, Vec3 wo, Vec3 wi, double u) {
-    { bsdf.sample(wo, u, u) } -> std::same_as<BsdfSample>;
-    { bsdf.eval(wo, wi) }     -> std::same_as<Reflectance>;
-    { bsdf.pdf(wo, wi) }      -> std::same_as<double>;
+concept BsdfModel = requires(const T& bsdf, Vec3 wo, Vec3 wi, double u,
+                             const Wavelengths& lambdas) {
+    { bsdf.sample(wo, lambdas, u, u) } -> std::same_as<BsdfSample>;
+    { bsdf.eval(wo, wi, lambdas) }     -> std::same_as<Reflectance>;
+    { bsdf.pdf(wo, wi) }               -> std::same_as<double>;
 };
+
+// `pdf` is the exception, and the asymmetry is worth a sentence. A density
+// over directions does not depend on wavelength: this project samples a
+// direction and carries four wavelengths along it, rather than sampling a
+// direction per wavelength. The day something disperses — v0.9's prism — the
+// path splits instead, which `Wavelengths::separated()` has been waiting for
+// since v0.1.
 
 // Whether two directions are on the same side of the surface. A BSDF that
 // only reflects returns nothing when they are not, and the test is spelled

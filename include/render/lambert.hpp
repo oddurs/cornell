@@ -116,9 +116,16 @@ namespace render {
 // physics it is doing.
 inline constexpr double projected_hemisphere = si::pi;
 
+// A Lambertian surface whose albedo is a *spectrum* rather than a number.
+//
+// `Spectrum` is anything that can answer "what is your value at this
+// wavelength" — a flat grey, a measured wall, a fitted upsample of an RGB
+// somebody typed. The material holds one and asks it, per path, for the four
+// wavelengths that path is carrying.
+template <class Spectrum>
 class Lambert {
 public:
-    constexpr explicit Lambert(const Reflectance& albedo) : albedo_{albedo} {}
+    constexpr explicit Lambert(Spectrum albedo) : albedo_{albedo} {}
 
     // The BRDF. Constant, by definition of the model, and equal to the albedo
     // divided by the integral that makes it conserve energy.
@@ -128,9 +135,15 @@ public:
     // refusing is deliberate — `wi` on the wrong side is a perfectly ordinary
     // question for the integrator to ask, and the answer is that no light
     // goes that way.
-    constexpr Reflectance eval(const Vec3& wo, const Vec3& wi) const {
+    constexpr Reflectance eval(const Vec3& wo, const Vec3& wi,
+                               const Wavelengths& lambdas) const {
         if (!same_hemisphere(wo, wi)) return Reflectance{};
-        return albedo_ * (1.0 / projected_hemisphere);
+
+        // The albedo, evaluated at the four wavelengths this path carries.
+        // This is the line the whole v0.3 signature change exists for.
+        Reflectance rho;
+        for (int i = 0; i < spectral_samples; ++i) rho[i] = albedo_.at(lambdas[i]);
+        return rho * (1.0 / projected_hemisphere);
     }
 
     // The density `sample` would have drawn this direction with. Separate
@@ -147,18 +160,16 @@ public:
     // The flip is for a `wo` arriving from below, which happens when a path
     // reaches a surface from the inside; the hemisphere sampled is always the
     // one `wo` is in.
-    BsdfSample sample(const Vec3& wo, double u, double v) const {
+    BsdfSample sample(const Vec3& wo, const Wavelengths& lambdas,
+                      double u, double v) const {
         DirectionSample drawn = cosine_hemisphere(u, v);
         if (wo.z < 0.0) drawn.direction.z = -drawn.direction.z;
 
-        return BsdfSample{drawn.direction, eval(wo, drawn.direction), drawn.pdf};
+        return BsdfSample{drawn.direction, eval(wo, drawn.direction, lambdas), drawn.pdf};
     }
 
 private:
-    Reflectance albedo_{};
+    Spectrum albedo_{};
 };
-
-static_assert(BsdfModel<Lambert>,
-              "Lambert must satisfy the three-method contract in bsdf.hpp");
 
 } // namespace render

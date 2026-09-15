@@ -18,25 +18,26 @@
 // number somebody typed, which is the thing this project exists not to do,
 // and every one of them is replaced in v0.4 by a number somebody measured.
 //
-// ── Why the walls are grey ───────────────────────────────────────────────
+// ── Why the walls are still grey ─────────────────────────────────────────
 //
 // The box is famous for a red wall and a green wall, and both walls here are
-// the same neutral grey. That is not laziness; it is the spectral discipline
-// arriving before the colour does.
+// the same neutral grey.
 //
-// A red wall is a *spectrum*: a reflectance that is high at long wavelengths
-// and low at short ones. `Reflectance` can already hold that — it is four
-// numbers at four wavelengths — but the four wavelengths differ from path to
-// path, so a wall's reflectance has to be evaluated *at the wavelengths this
-// path is carrying*, and nothing in `bsdf.hpp` passes them yet. Adding a
-// wavelength argument is a change to the contract every material signs, and
-// it belongs with `cie.hpp` in v0.3, where there is finally an observer to
-// turn the answer into something a monitor can show.
+// In v0.2 that was because a material could not be asked what it reflected at
+// a particular wavelength. It can now — `bsdf.hpp` gained the argument, and
+// the lamp below emits a tabulated D65 through exactly that route — so the
+// obstacle is gone and the walls are grey for the other reason.
 //
-// So: grey walls, and the red one arrives with its measured spectrum rather
-// than with a number chosen to look right. Typing `(0.8, 0.1, 0.1)` here to
-// get a red wall two milestones early would be exactly the thing the README
-// promises this project never does.
+// They are grey because the red one is *measured*. Item 0053 is the spectral
+// reflectance Cornell published for that wall, and it arrives in v0.4 with
+// the rest of the box. Typing a plausible red here, now that it would finally
+// work, is more tempting than it was and exactly as wrong: it is the
+// difference between a renderer that reproduces a photograph and one that
+// looks about right.
+//
+// The route for an RGB somebody types *does* exist as of v0.3 — item 0044's
+// upsampling — and its own criterion says the Cornell walls may not go
+// through it.
 
 #pragma once
 
@@ -58,10 +59,15 @@ inline constexpr double box_size = 2.0;
 // item 0053 is the measured spectral reflectances.
 inline constexpr double wall_albedo = 0.7;
 
-// Spectral radiance, W·m⁻²·sr⁻¹·m⁻¹, chosen so that the walls land in a
-// range the preview can show. Item 0054 is the light's measured emission
-// spectrum and geometry.
-inline constexpr double lamp_radiance = 12.0;
+// The lamp's brightness, in spectral radiance where its spectrum is 1.
+// Chosen so the walls land in a range the preview can show. Item 0054 is the
+// light's measured emission spectrum and geometry.
+//
+// Its *spectrum* is no longer a placeholder: it is D65, tabulated, the same
+// illuminant `srgb.hpp` builds its matrix around — so a white wall in this
+// room renders as white on a calibrated display for a reason rather than by
+// arrangement. A real fixture is not D65 either, which is what 0054 fixes.
+inline constexpr double lamp_radiance = 0.12;
 
 // ── The geometry ────────────────────────────────────────────────────────
 //
@@ -80,7 +86,8 @@ inline void add_quad(render::Scene& scene,
                      const render::Vec3& c, const render::Vec3& d,
                      const render::Vec3& should_face,
                      const render::Bsdf& bsdf,
-                     const render::Radiance& emission) {
+                     const render::Emission& emission,
+                     double radiance) {
     using namespace render;
     Triangle first{a, b, c};
     Triangle second{a, c, d};
@@ -88,8 +95,8 @@ inline void add_quad(render::Scene& scene,
         first = Triangle{a, c, b};
         second = Triangle{a, d, c};
     }
-    scene.add(Surface{first, bsdf, emission});
-    scene.add(Surface{second, bsdf, emission});
+    scene.add(Surface{first, bsdf, emission, radiance});
+    scene.add(Surface{second, bsdf, emission, radiance});
 }
 
 } // namespace detail
@@ -105,8 +112,7 @@ inline render::Scene box(double scale = 1.0) {
     using namespace render;
 
     Scene scene;
-    const Bsdf wall = Lambert{Reflectance{wall_albedo}};
-    const Radiance dark{};
+    const Bsdf wall = GreyLambert{Flat{wall_albedo}};
 
     const double h = box_size * scale / 2.0;   // half width
     const double t = box_size * scale;         // ceiling height
@@ -114,15 +120,15 @@ inline render::Scene box(double scale = 1.0) {
 
     // floor, ceiling, back, left, right — each facing into the room.
     detail::add_quad(scene, {-h, 0, 0}, {h, 0, 0}, {h, 0, back}, {-h, 0, back},
-                     {0, 1, 0}, wall, dark);
+                     {0, 1, 0}, wall, render::Flat{0.0}, 0.0);
     detail::add_quad(scene, {-h, t, 0}, {h, t, 0}, {h, t, back}, {-h, t, back},
-                     {0, -1, 0}, wall, dark);
+                     {0, -1, 0}, wall, render::Flat{0.0}, 0.0);
     detail::add_quad(scene, {-h, 0, back}, {h, 0, back}, {h, t, back}, {-h, t, back},
-                     {0, 0, 1}, wall, dark);
+                     {0, 0, 1}, wall, render::Flat{0.0}, 0.0);
     detail::add_quad(scene, {-h, 0, 0}, {-h, 0, back}, {-h, t, back}, {-h, t, 0},
-                     {1, 0, 0}, wall, dark);
+                     {1, 0, 0}, wall, render::Flat{0.0}, 0.0);
     detail::add_quad(scene, {h, 0, 0}, {h, 0, back}, {h, t, back}, {h, t, 0},
-                     {-1, 0, 0}, wall, dark);
+                     {-1, 0, 0}, wall, render::Flat{0.0}, 0.0);
 
     // The lamp: a panel just below the ceiling, facing down. Just below
     // rather than in it, because two coplanar surfaces are a coin toss for
@@ -137,11 +143,12 @@ inline render::Scene box(double scale = 1.0) {
                      { lamp_half, lamp_y, lamp_z + lamp_half},
                      {-lamp_half, lamp_y, lamp_z + lamp_half},
                      {0, -1, 0},
-                     Bsdf{Lambert{Reflectance{0.0}}},   // a lamp that also
-                                                        // reflects is a lamp
-                                                        // with a shade, and
-                                                        // this one has none
-                     Radiance{lamp_radiance});
+                     Bsdf{GreyLambert{Flat{0.0}}},   // a lamp that also
+                                                     // reflects is a lamp
+                                                     // with a shade, and
+                                                     // this one has none
+                     cie::d65,
+                     lamp_radiance);
     return scene;
 }
 

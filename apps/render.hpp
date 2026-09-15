@@ -130,6 +130,7 @@
 #include <render/scene.hpp>
 #include <render/si.hpp>
 #include <render/spectrum.hpp>
+#include <render/srgb.hpp>
 #include <render/transport.hpp>
 
 #include "box.hpp"
@@ -161,6 +162,39 @@ inline constexpr double film_distance = 0.018;  // 18 mm, giving 67.4 degrees
 inline int height_for(int width) {
     return int(double(width) * film_height / film_width + 0.5);
 }
+
+// ── The normalisation, which is derived ──────────────────────────────────
+//
+// `cie::xyz_estimate` returns absolute tristimulus: the spectral radiance in
+// W·m⁻²·sr⁻¹·m⁻¹ integrated against the observer, which has units of
+// W·m⁻²·sr⁻¹ and comes out around 1e-7 for this room. That is a correct
+// number and a useless one to expose against.
+//
+// Y is meant to be *relative* luminance — 1 for a perfect white — so it needs
+// a constant, and `cie.hpp` derives that constant as an integral rather than
+// letting anybody type it:
+//
+//      k = 1 / integral of S(lambda) * y-bar(lambda) d(lambda)
+//
+// with S the light doing the lighting. Here that is the lamp: its D65
+// spectrum, scaled by its radiance. So Y = 1 means "as bright as looking
+// straight at the lamp", and every other surface is a fraction of it.
+//
+// Quoting a k without saying which light it was for is how a renderer ends up
+// a constant factor wrong with nobody noticing, because everything in the
+// image is wrong by the same factor. This one is computed from the scene's
+// own lamp, at compile time, and moves if the lamp does.
+inline constexpr double lamp_normalisation = [] {
+    render::cie::Illuminant lit = render::cie::d65;
+    for (std::size_t i = 0; i < render::cie::samples; ++i) lit.table[i] *= lamp_radiance;
+    return render::cie::luminance_normalisation(lit);
+}();
+
+// The exposure, on top of that. A choice, not physics — see item 0046. The
+// lamp is Y = 1 by the normalisation above, and this puts the walls near
+// mid-grey, which clips the lamp exactly as a photograph exposed for the
+// walls does.
+inline constexpr double reference_luminance = 0.2;
 
 inline int render(const RenderSettings& settings) {
     using namespace render;
@@ -196,7 +230,7 @@ inline int render(const RenderSettings& settings) {
                 const Wavelengths lambdas = Wavelengths::sample(sampler.next());
 
                 const Radiance carried =
-                    radiance(scene, camera.ray_through(u, v), sampler);
+                    radiance(scene, camera.ray_through(u, v), lambdas, sampler);
 
                 film.add_sample(x, y, lambdas, carried);
             }
@@ -208,54 +242,51 @@ inline int render(const RenderSettings& settings) {
 
     // ── Out ──────────────────────────────────────────────────────────────
     //
-    // Still one wavelength of forty-seven, because there is still no
-    // observer. 555 nm is where the photopic curve peaks — `si.hpp` says so
-    // too — and it is a fact about eyes, used here only to choose which of
-    // the bins to print. The bin centred on it is the one this asks for, so
-    // the number printed below and the number named here are the same.
-    const int bin = Film::bin_of(555.0e-9);
+    // The film holds tristimulus now, integrated against the 1931 observer at
+    // the wavelength each sample was actually drawn at. No bin is chosen and
+    // no wavelength is privileged: v0.1 and v0.2 printed one of forty-seven
+    // bins because there was no observer to integrate against, and said so
+    // each time.
 
-    std::vector<float> linear(std::size_t(settings.width) * std::size_t(height));
-    std::vector<double> preview(linear.size() * 3);
+    std::vector<float>  linear(std::size_t(settings.width) * std::size_t(height) * 3);
+    std::vector<double> preview(linear.size());
 
     double brightest = 0.0;
     double total = 0.0;
+    long out_of_gamut = 0;
+
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < settings.width; ++x) {
-            const std::size_t p = std::size_t(y) * std::size_t(settings.width) + std::size_t(x);
-            const double value = film.mean_radiance(x, y, bin);
-            linear[p] = float(value);
-            brightest = std::fmax(brightest, value);
-            total += value;
+            const Xyz measured = film.mean_tristimulus(x, y) * lamp_normalisation;
+            brightest = std::fmax(brightest, measured.y);
+            total += measured.y;
+
+            // The exposure, and it is still a choice rather than physics.
+            // Dividing by a reference luminance is what a camera's exposure
+            // setting does; this one is picked so the walls land near
+            // mid-grey and the lamp clips, which is what a photograph of the
+            // real box does. Item 0046 is where this is done properly and
+            // marked as the one part of the project with no correct answer.
+            const Xyz exposed = measured * (1.0 / reference_luminance);
+
+            // Tristimulus to the display's primaries, through the matrix
+            // srgb.hpp derived rather than pasted.
+            const Xyz rgb = srgb::apply(srgb::xyz_to_rgb, exposed.x, exposed.y, exposed.z);
+
+            const std::size_t p = (std::size_t(y) * std::size_t(settings.width) + std::size_t(x)) * 3;
+            linear[p + 0] = float(rgb.x);
+            linear[p + 1] = float(rgb.y);
+            linear[p + 2] = float(rgb.z);
+
+            if (rgb.x < 0.0 || rgb.y < 0.0 || rgb.z < 0.0) ++out_of_gamut;
+
+            preview[p + 0] = rgb.x;
+            preview[p + 1] = rgb.y;
+            preview[p + 2] = rgb.z;
         }
     }
 
-    // The exposure, stated rather than hidden.
-    //
-    // Dividing by a reference radiance is exactly what a camera's exposure
-    // setting does, and choosing the reference is exactly what a photographer
-    // does. One W·m⁻²·sr⁻¹·m⁻¹ maps to white here, which puts the walls — at
-    // about 0.4 — near mid-grey and blows the lamp, which is twelve times
-    // over, out to pure white.
-    //
-    // That is what a photograph of the real box looks like, because it is
-    // exposed for the walls and the lamp is the brightest thing in the room
-    // by an order of magnitude. Exposing for the lamp instead is defensible,
-    // and it renders a nearly black picture of a correctly lit room.
-    //
-    // It is a choice and it is not physics, which is why it is one named
-    // constant with a paragraph attached rather than a curve. The proper
-    // treatment — and the marking of it as not-physics — is item 0046 in
-    // v0.3. No figure is ever quoted from this image; the PFM is for that.
-    const double reference = 1.0;
-    for (std::size_t p = 0; p < linear.size(); ++p) {
-        const double shown = double(linear[p]) / reference;
-        preview[p * 3 + 0] = shown;
-        preview[p * 3 + 1] = shown;
-        preview[p * 3 + 2] = shown;
-    }
-
-    if (!write_pfm("cornell.pfm", settings.width, height, linear) ||
+    if (!write_pfm_rgb("cornell.pfm", settings.width, height, linear) ||
         !write_ppm("cornell.ppm", settings.width, height, preview)) {
         std::fprintf(stderr, "cornell: could not write the image files\n");
         return 1;
@@ -265,13 +296,15 @@ inline int render(const RenderSettings& settings) {
     std::printf("%d x %d, %d samples per pixel, %.2f million paths, %.1f s\n",
                 settings.width, height, settings.spp, paths / 1e6, seconds);
     std::printf("  %.2f million paths per second\n", paths / 1e6 / seconds);
-    std::printf("spectral radiance at %.0f nm, W/m2/sr/m: mean %.4f, brightest %.4f\n",
-                si::as::nm(Film::bin_centre(bin)), total / double(linear.size()), brightest);
-    std::printf("cornell.pfm   the linear data, which is what a number may be quoted from\n");
-    std::printf("cornell.ppm   the same, exposed against %.1f W/m2/sr/m and encoded\n"
-                "              with sRGB's transfer function, clipping the lamp at\n"
-                "              %.0fx over, as a photograph would\n",
-                reference, brightest / reference);
+    std::printf("luminance Y: mean %.4f, brightest %.4f\n",
+                total / (double(settings.width) * double(height)), brightest);
+    std::printf("out of gamut: %ld of %d pixels have a negative sRGB component\n",
+                out_of_gamut, settings.width * height);
+    std::printf("cornell.pfm   linear sRGB, three channels, unclipped — the file a\n"
+                "              number may be quoted from\n");
+    std::printf("cornell.ppm   the same, exposed against Y = %.2f and encoded with\n"
+                "              sRGB's transfer function, clipping the lamp %.0fx over\n",
+                reference_luminance, brightest / reference_luminance);
     return 0;
 }
 
