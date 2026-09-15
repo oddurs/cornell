@@ -33,3 +33,8 @@ reader would use.
 
 - [ ] Every number in the README traces to a line of this output
 - [ ] Runs in under a minute, or grows a `--quick` that says what it skipped
+- [ ] A Macbeth chart under D65, against published Lab values — item 0049's
+      last criterion. D65 itself and equal-energy white are checked as
+      static_asserts in `illuminant.hpp`; the chart needs a spectral data set
+      and a Lab implementation, which is an instrument's job rather than a
+      header's
