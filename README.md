@@ -94,6 +94,42 @@ identically at 1× and at 1000× — and that the estimator is written out as
 
 ---
 
+## And one it will not let you forget
+
+The colour matching functions are not a law.
+
+W. David Wright measured ten observers at Imperial College in 1928 and 1929.
+John Guild measured seven at the National Physical Laboratory. Each of them
+sat in the dark and turned three knobs until a mixture of three primaries
+matched a monochromatic light, wavelength by wavelength. The two sets of
+results agreed closely enough that the CIE averaged them in 1931, and the
+colour science of every screen, camera, print process and television standard
+since rests on what seventeen young British men's eyes did.
+
+That table is in this repository, cited, and so is what is wrong with it.
+Variation between observers is far larger than the precision it is computed
+to, so "the standard observer" is nobody. The 1931 x-bar has known problems in
+the blue, because it was fitted to a luminosity curve that was itself too low
+at short wavelengths — Judd corrected it in 1951 and Vos in 1978, and neither
+replaced it, because by then the world was built on it. And it describes a
+patch the width of a thumbnail at arm's length, while the box below subtends
+rather more.
+
+None of that is a sneer; it has survived a century of people trying to
+improve on it. It is simply the one input to this project that measures
+*people* rather than the world, and a repository that makes a point of
+deriving rather than declaring should say which of its foundations is which.
+
+```
+$ ./cornell spectrum d65
+```
+
+prints the daylight spectrum, what the observer makes of it, and a correlated
+colour temperature of 6504 K — which is the number in D65's own definition,
+arrived at from the other end.
+
+---
+
 ## The box
 
 In 1984, four people at Cornell — Goral, Torrance, Greenberg and Battaile —
