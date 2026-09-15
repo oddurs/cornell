@@ -108,7 +108,8 @@ inline void add_quad(render::Scene& scene,
 // scaling of a scene — every length in the transport cancels — so the two
 // images must agree bit for bit, and if they do not, the offset has a length
 // hidden in it somewhere.
-inline render::Scene box(double scale = 1.0) {
+inline render::Scene box(double scale = 1.0,
+                         const render::cie::Illuminant& lamp = render::cie::d65) {
     using namespace render;
 
     Scene scene;
@@ -147,7 +148,7 @@ inline render::Scene box(double scale = 1.0) {
                                                      // reflects is a lamp
                                                      // with a shade, and
                                                      // this one has none
-                     cie::d65,
+                     lamp,
                      lamp_radiance);
     return scene;
 }

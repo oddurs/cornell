@@ -138,45 +138,9 @@ inline constexpr Chromaticity blue  = {0.1500, 0.0600};
 inline constexpr Chromaticity white =
     chromaticity_of(cie::white_point(cie::d65));
 
-// ── A 3 x 3, and the two operations the derivation needs ─────────────────
-//
-// Written out rather than pulled in, because house rule 4 has no linear
-// algebra library in it and because a matrix that exists to be inverted once
-// at compile time does not need an abstraction.
-
-struct Matrix3 {
-    std::array<std::array<double, 3>, 3> m{};
-
-    constexpr const std::array<double, 3>& operator[](std::size_t r) const { return m[r]; }
-    constexpr std::array<double, 3>&       operator[](std::size_t r)       { return m[r]; }
-};
-
-constexpr Xyz apply(const Matrix3& a, double r, double g, double b) {
-    return Xyz{a[0][0] * r + a[0][1] * g + a[0][2] * b,
-               a[1][0] * r + a[1][1] * g + a[1][2] * b,
-               a[2][0] * r + a[2][1] * g + a[2][2] * b};
-}
-
-constexpr double determinant(const Matrix3& a) {
-    return a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
-         - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
-         + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
-}
-
-constexpr Matrix3 inverse(const Matrix3& a) {
-    const double d = determinant(a);
-    Matrix3 out;
-    out[0][0] = (a[1][1] * a[2][2] - a[1][2] * a[2][1]) / d;
-    out[0][1] = (a[0][2] * a[2][1] - a[0][1] * a[2][2]) / d;
-    out[0][2] = (a[0][1] * a[1][2] - a[0][2] * a[1][1]) / d;
-    out[1][0] = (a[1][2] * a[2][0] - a[1][0] * a[2][2]) / d;
-    out[1][1] = (a[0][0] * a[2][2] - a[0][2] * a[2][0]) / d;
-    out[1][2] = (a[0][2] * a[1][0] - a[0][0] * a[1][2]) / d;
-    out[2][0] = (a[1][0] * a[2][1] - a[1][1] * a[2][0]) / d;
-    out[2][1] = (a[0][1] * a[2][0] - a[0][0] * a[2][1]) / d;
-    out[2][2] = (a[0][0] * a[1][1] - a[0][1] * a[1][0]) / d;
-    return out;
-}
+// The 3 x 3 machinery moved to `cie.hpp` when `bradford.hpp` turned out to
+// need it too: a transform between illuminants should not have to include a
+// display standard to get a matrix inverse.
 
 // ── The derivation ───────────────────────────────────────────────────────
 

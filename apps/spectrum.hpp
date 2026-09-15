@@ -120,7 +120,7 @@ inline void report(std::string_view name,
 
     // And what a display would do with it, which is where out-of-gamut stops
     // being an abstraction.
-    const render::Xyz rgb = render::srgb::apply(
+    const render::Xyz rgb = render::apply(
         render::srgb::xyz_to_rgb, tristimulus.x, tristimulus.y, tristimulus.z);
     const double scale = std::fmax(rgb.x, std::fmax(rgb.y, rgb.z));
     std::printf("  linear sRGB    %+.4f  %+.4f  %+.4f%s\n",
