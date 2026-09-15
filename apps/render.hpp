@@ -268,8 +268,9 @@ inline int render(const RenderSettings& settings) {
     std::printf("spectral radiance at %.0f nm, W/m2/sr/m: mean %.4f, brightest %.4f\n",
                 si::as::nm(Film::bin_centre(bin)), total / double(linear.size()), brightest);
     std::printf("cornell.pfm   the linear data, which is what a number may be quoted from\n");
-    std::printf("cornell.ppm   the same, exposed against %.1f W/m2/sr/m and gamma 2.2,\n"
-                "              which clips the lamp at %.0fx over, as a photograph would\n",
+    std::printf("cornell.ppm   the same, exposed against %.1f W/m2/sr/m and encoded\n"
+                "              with sRGB's transfer function, clipping the lamp at\n"
+                "              %.0fx over, as a photograph would\n",
                 reference, brightest / reference);
     return 0;
 }

@@ -72,13 +72,12 @@ Lambert, Augsburg, 1760. A surface seen at an angle presents less of itself, by 
 
 ## v0.3 — Eyes have three cone types
 
-`###·······` 30% · 3 of 10 done
+`####······` 40% · 4 of 10 done
 
 A spectrum is a function of wavelength and a monitor has three primaries, and the bridge between them is a table of numbers fitted to seventeen people in London in 1931.
 
 ### backlog
 
-- [ ] [`0043`](https://github.com/oddurs/cornell/blob/main/cairn/items/0043-srgb-hpp-the-transfer-function-exactly-not-2-2.md) srgb.hpp: the transfer function exactly, not 2.2 <sup>optics · p0 · colour</sup>
 - [ ] [`0044`](https://github.com/oddurs/cornell/blob/main/cairn/items/0044-upsample-an-rgb-albedo-a-user-types-in-to-a-plausible-spectrum.md) Upsample an RGB albedo a user types in to a plausible spectrum <sup>optics · p2 · colour</sup>
 - [ ] [`0045`](https://github.com/oddurs/cornell/blob/main/cairn/items/0045-chromatic-adaptation-and-why-a-white-point-is-a-choice.md) Chromatic adaptation, and why a white point is a choice <sup>optics · p2 · colour · admission</sup>
 - [ ] [`0046`](https://github.com/oddurs/cornell/blob/main/cairn/items/0046-tone-mapping-is-not-physics-and-is-marked-as-such.md) Tone mapping is not physics, and is marked as such <sup>optics · p2 · colour · admission</sup>
@@ -89,6 +88,7 @@ A spectrum is a function of wavelength and a monitor has three primaries, and th
 ### done
 
 - [x] [`0042`](https://github.com/oddurs/cornell/blob/main/cairn/items/0042-cie-hpp-the-1931-standard-observer-as-published.md) cie.hpp: the 1931 standard observer, as published <sup>optics · p0 · colour · foundation</sup>
+- [x] [`0043`](https://github.com/oddurs/cornell/blob/main/cairn/items/0043-srgb-hpp-the-transfer-function-exactly-not-2-2.md) srgb.hpp: the transfer function exactly, not 2.2 <sup>optics · p0 · colour</sup>
 - [x] [`0049`](https://github.com/oddurs/cornell/blob/main/cairn/items/0049-verify-d65-lands-on-its-published-chromaticity.md) Verify: D65 lands on its published chromaticity <sup>verify · p0 · verification</sup>
 - [x] [`0154`](https://github.com/oddurs/cornell/blob/main/cairn/items/0154-the-illuminants-because-a-normalisation-is-an-integral-against-one.md) The illuminants, because a normalisation is an integral against one <sup>optics · p0 · colour</sup>
 
