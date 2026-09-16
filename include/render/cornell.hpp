@@ -79,6 +79,7 @@
 #include <array>
 #include <cstddef>
 #include <render/cie.hpp>
+#include <render/si.hpp>
 #include <render/spectrum.hpp>
 
 namespace render::cornell {
@@ -162,6 +163,124 @@ inline constexpr WallSpectrum red = {reflectance_first, reflectance_step, {
     0.657, 0.639, 0.635, 0.642,
 }};
 
+// ── The light ────────────────────────────────────────────────────────────
+//
+// MEASURED, and the thinnest part of the data set by a long way.
+//
+// The emission spectrum is four numbers:
+//
+//      400 nm    0.0
+//      500 nm    8.0
+//      600 nm   15.6
+//      700 nm   18.4
+//
+// Everything else here is sampled every 4 nm. The thing that sets the colour
+// of the entire image is sampled every 100.
+//
+// ── What kind of lamp, which took some finding ───────────────────────────
+//
+// The data page does not say. Cornell's companion measurement library does:
+//
+//      boxsource.mat: the spectrum of the light source in the Cornell box
+//      (tungsten flood light with UV filter and diffusing glass plate)
+//
+// A tungsten flood, filtered, behind diffusing glass. Three facts, and all
+// three show up in those four numbers.
+//
+// ── The four points check out against Planck ─────────────────────────────
+//
+// If it is tungsten, the spectrum should be a blackbody. Fitting one to the
+// 500, 600 and 700 nm points, with the scale free because the published
+// numbers have no units:
+//
+//      best fit          3350 K, rms residual 0.73 on values of 8 to 18
+//
+//      predicted   500 nm   8.69    published   8.0
+//                  600 nm  14.62               15.6
+//                  700 nm  18.84               18.4
+//
+// A tungsten flood lamp runs at about 3200 to 3400 K. So the shape of the
+// published spectrum independently confirms what the other page says the lamp
+// was, which is the sort of agreement between two unrelated sources that is
+// worth more than either.
+//
+// And the one place they disagree is the interesting one. The fitted
+// blackbody predicts 3.10 at 400 nm; the published value is 0.0. That is the
+// UV filter, which the same sentence documents. The data, the lamp
+// description and Planck's law corroborate each other, and their single
+// disagreement is explained by a component named in the source.
+//
+// ── The scale is arbitrary, so there is no flux in watts ─────────────────
+//
+// This item asked for the radiant flux quoted in watts, derived from the
+// measured radiance and the area. That cannot be done, and the reason is
+// stated by Cornell rather than inferred:
+//
+//      The following spectra are relative only; their scales are arbitrary.
+//
+// So the numbers above are a *shape*, not a measurement of how much light
+// there is. An absolute flux requires an absolute radiance, and none was
+// published.
+//
+// The derivation is still worth writing down, because it is one line and
+// because v1.0 needs it the moment a scale exists. For a Lambertian emitter,
+// radiant exitance is pi times radiance, and flux is exitance times area:
+//
+//      Phi = pi * L * A
+//
+// With the light's measured area of 0.013650 m^2, that is 0.042882 * L watts.
+// Choose L and the flux follows; the choice is CALIBRATED and is made in the
+// scene rather than here, so that this file stays a record of what was
+// published.
+//
+// ── The geometry, and the hole it goes in ────────────────────────────────
+//
+// MEASURED. A quadrilateral at y = 548.8 mm spanning x from 213.0 to 343.0
+// and z from 227.0 to 332.0: 130 mm by 105 mm, an area of 0.013650 m^2.
+//
+// It is exactly coplanar with the ceiling, which is also at 548.8, and that is
+// not an oversight in the data — the published ceiling comes with a matching
+// "Hole (for disc. mesh)" at precisely these four corners. The lamp fills a
+// hole in the ceiling rather than hovering below it.
+//
+// `box.hpp` in v0.2 moved its placeholder lamp 10 mm down to dodge exactly
+// this, and said why: two coplanar surfaces are a coin toss for every ray
+// that reaches them. Cornell's answer is better and is the one the geometry
+// specifies, so `cornell.hpp` cuts the hole.
+
+inline constexpr int emission_first_nm = 400;
+inline constexpr int emission_step_nm  = 100;
+inline constexpr int emission_last_nm  = 700;
+inline constexpr std::size_t emission_samples = 4;
+
+static_assert(emission_first_nm + emission_step_nm * int(emission_samples - 1)
+                  == emission_last_nm,
+              "the emission grid must end at 700 nm");
+
+using EmissionSpectrum = Measured<emission_samples>;
+
+// MEASURED, relative. See above: this is a shape, not an amount.
+inline constexpr EmissionSpectrum emission = {
+    double(emission_first_nm) / 1e9, double(emission_step_nm) / 1e9,
+    {0.0, 8.0, 15.6, 18.4}
+};
+
+// MEASURED. The lamp, in metres, from the published millimetres.
+inline constexpr double light_y      = 548.8 / 1e3;
+inline constexpr double light_x_min  = 213.0 / 1e3;
+inline constexpr double light_x_max  = 343.0 / 1e3;
+inline constexpr double light_z_min  = 227.0 / 1e3;
+inline constexpr double light_z_max  = 332.0 / 1e3;
+
+inline constexpr double light_area =
+    (light_x_max - light_x_min) * (light_z_max - light_z_min);
+
+// The derivation above, for whenever a radiance is chosen. Lambertian
+// emitter: exitance is pi times radiance, flux is exitance times area.
+constexpr double light_flux_for(double radiance) {
+    return si::pi * radiance * light_area;
+}
+
 // ── Checked at compile time ──────────────────────────────────────────────
 //
 // House rule 5, and the transcription of 228 numbers is exactly the kind of
@@ -195,6 +314,28 @@ static_assert(physical(white) && physical(green) && physical(red),
 // somebody has replaced measured paint with a primary.
 static_assert(red.highest() < 0.70, "the red wall reflects at most 0.657, not 1");
 static_assert(green.highest() < 0.50, "the green wall reflects at most 0.481, not 1");
+
+// ── The light ────────────────────────────────────────────────────────────
+
+static_assert(emission.table[0] == 0.0,  "the UV filter puts 400 nm at zero");
+static_assert(emission.table[3] == 18.4, "700 nm is the brightest published point");
+
+// Monotonically rising, which is what a tungsten spectrum does across the
+// visible and what the blackbody fit above depends on.
+static_assert(emission.table[0] < emission.table[1] &&
+              emission.table[1] < emission.table[2] &&
+              emission.table[2] < emission.table[3],
+              "a tungsten spectrum rises towards the red across the visible");
+
+// The measured lamp, in metres. 130 mm by 105 mm.
+static_assert(light_x_max - light_x_min > 0.1299 && light_x_max - light_x_min < 0.1301);
+static_assert(light_z_max - light_z_min > 0.1049 && light_z_max - light_z_min < 0.1051);
+static_assert(light_area > 0.013649 && light_area < 0.013651,
+              "the lamp is 0.013650 square metres");
+
+// And the flux derivation, at a radiance of 1, which is pi * area.
+static_assert(light_flux_for(1.0) > 0.042881 && light_flux_for(1.0) < 0.042883,
+              "flux is pi times radiance times area");
 
 } // namespace check
 
