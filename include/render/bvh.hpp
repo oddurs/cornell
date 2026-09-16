@@ -264,7 +264,9 @@ public:
     static_assert(stack_size > max_depth, "the stack must hold the deepest path");
 
     // Build over a list of bounds, one per primitive. The caller keeps the
-    // primitives; this returns the order to visit them in.
+    // primitives and never sees the permutation: `traverse` hands back the
+    // caller's own indices, so the order the tree sorted them into stays
+    // inside the tree.
     void build(const std::vector<Bounds>& item_bounds) {
         const std::size_t n = item_bounds.size();
         order_.resize(n);
@@ -281,7 +283,6 @@ public:
     }
 
     const std::vector<BvhNode>& nodes() const { return nodes_; }
-    const std::vector<std::uint32_t>& order() const { return order_; }
 
     // Walk the tree, handing each candidate primitive to `test`, which
     // returns true if it found a closer hit and has shortened the ray.

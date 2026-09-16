@@ -92,7 +92,7 @@ A spectrum is a function of wavelength and a monitor has three primaries, and th
 
 ## v0.4 — The box, as measured
 
-`##########` 100% · 12 of 12 done
+`##########` 100% · 13 of 13 done
 
 The scene arrives, and it is not a scene. It is a plywood box built at Cornell, painted, lit, and photographed with a calibrated radiometer, published with the spectral reflectance of every wall so that a renderer has something to be right about.
 
@@ -110,6 +110,7 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 - [x] [`0060`](https://github.com/oddurs/cornell/blob/main/cairn/items/0060-prose-cornell-hpp-s-opening-in-the-lab-notebook-voice.md) Prose: cornell.hpp's opening, in the lab-notebook voice <sup>prose · p2 · prose</sup>
 - [x] [`0061`](https://github.com/oddurs/cornell/blob/main/cairn/items/0061-admit-that-the-plywood-is-not-lambertian.md) Admit that the plywood is not Lambertian <sup>prose · p2 · prose · admission</sup>
 - [x] [`0156`](https://github.com/oddurs/cornell/blob/main/cairn/items/0156-what-the-second-code-review-found.md) What the second code review found <sup>chore · p1 · verification</sup>
+- [x] [`0157`](https://github.com/oddurs/cornell/blob/main/cairn/items/0157-there-is-no-mesh-and-the-reason-is-measurable.md) There is no mesh, and the reason is measurable <sup>chore · p1 · geometry</sup>
 
 ## v0.5 — It has to be right
 
