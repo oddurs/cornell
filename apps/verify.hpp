@@ -28,6 +28,7 @@
 #include <render/si.hpp>
 
 #include "chi2.hpp"
+#include "furnace.hpp"
 #include "render.hpp"
 
 namespace app {
@@ -441,6 +442,75 @@ inline int verify() {
         std::printf("  %-46s %9d draws   %s   p = %.1e, %.1e\n",
                     "two deliberate liars, which must be caught", liar_draws * 2,
                     caught ? "caught" : "ESCAPED", flat, nearly);
+    }
+
+    // ── Lambert vanishes in the furnace ──────────────────────────────────
+    //
+    // Item 0066's claim, on the sheet rather than in an instrument somebody
+    // remembers to run. `furnace.hpp` prints the argument and the three ways
+    // of asking; what belongs here is the sentence and its verdict.
+    //
+    // The item asked for a residual below 1e-6 and it is zero, so the check
+    // is `== 0.0` rather than a tolerance. A tolerance would be a place for
+    // an error to hide that nothing in this scene can produce: the estimator
+    // divides the same cosine by itself and `rho/pi` against `1/pi` cancels
+    // exactly when rho is 1, so the correct answer is a bit pattern.
+    {
+        using namespace furnace_detail;
+
+        std::printf("\nA Lambertian of reflectance 1 vanishes in a uniform environment.\n\n");
+
+        constexpr int resolution = 96;
+        constexpr int spp = 8;
+
+        const Camera furnace_camera =
+            Camera::look_at(Vec3{0, 0, -5}, Vec3{0, 0, 0}, Vec3{0, 1, 0},
+                            film_width, film_height, film_distance);
+
+        std::vector<double> picture;
+
+        // Three albedos, all binary fractions so that the comparison can be
+        // exact — `furnace.hpp` explains why 0.9 cannot be. At rho = 1 the
+        // sphere must be gone; below it, it must be there by exactly 1 - rho,
+        // which is what stops the check passing on an empty scene.
+        for (const double rho : {1.0, 0.5, 0.0}) {
+            const Scene empty_but_for_a_sphere = enclosure::uniform_environment(rho);
+            const Residual r = measure(empty_but_for_a_sphere, furnace_camera,
+                                       resolution, spp, picture);
+
+            const double expected = 1.0 - rho;
+            const bool ok = r.worst == expected && r.on_the_sphere > 0;
+            all_agree = all_agree && ok;
+
+            char label[64];
+            std::snprintf(label, sizeof label,
+                          rho == 1.0 ? "reflectance %.2f, which must leave nothing"
+                                     : "reflectance %.2f, which must leave a disc", rho);
+            std::printf("  %-46s %9ld pixels   %s   |L-1| = %.3e\n",
+                        label, r.on_the_sphere, ok ? "agree" : "DISAGREE", r.worst);
+        }
+
+        // And the directional albedo, which is the part of the claim an image
+        // cannot show: a BRDF integrated against the cosine over the
+        // hemisphere is a reflectance, and for this one it is the albedo.
+        // Through `eval` alone, so it is blind to the sampling routine.
+        const Bsdf white{GreyLambert{Flat{1.0}}};
+        double worst = 0.0;
+        for (const double degrees : {0.0, 30.0, 60.0, 85.0}) {
+            const double theta = degrees * si::pi / 180.0;
+            const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+            worst = std::fmax(worst, std::fabs(
+                directional_albedo_by_quadrature(white, wo, 256, 256) - 1.0));
+        }
+
+        // Not exact, and `furnace.hpp` measures why: the integrand is
+        // constant so the midpoint rule is analytically exact, and what is
+        // left is the summation of 65,536 doubles.
+        const bool integrates = worst < 1e-12;
+        all_agree = all_agree && integrates;
+        std::printf("  %-46s %9d cells    %s   worst %.3e\n",
+                    "its BRDF integrates against the cosine to 1", 256 * 256,
+                    integrates ? "agree" : "DISAGREE", worst);
     }
 
     std::printf("\n%s\n", all_agree
