@@ -288,6 +288,34 @@ struct CosinePowerLiar {
 using ClaimsUniform  = CosinePowerLiar<0, 1>;      // cos^0: flat over the hemisphere
 using ClaimsTwoPer   = CosinePowerLiar<102, 100>;  // cos^1.02, which is nearly right
 
+// A third liar, for the check chi-squared cannot make. This one has the right
+// *shape* — cosine-weighted, exactly what it draws — and half the magnitude,
+// so it agrees with its own sampler perfectly and is not a density at all.
+//
+// Pearson's statistic is blind to it: the expected counts are the density
+// times the number of draws, and scaling every expectation by a half and then
+// renormalising to the draw count gives back the same expectations. It is
+// `verify.hpp`'s normalisation section that catches this one, which is why
+// that section exists next to a test that appears to cover it.
+struct HalfADensity {
+    BsdfSample sample(const Vec3& wo, const Wavelengths& lambdas, double u, double v) const {
+        DirectionSample drawn = cosine_hemisphere(u, v);
+        if (wo.z < 0.0) drawn.direction.z = -drawn.direction.z;
+        return BsdfSample{drawn.direction, eval(wo, drawn.direction, lambdas),
+                          pdf(wo, drawn.direction)};
+    }
+
+    Brdf eval(const Vec3& wo, const Vec3& wi, const Wavelengths&) const {
+        if (!same_hemisphere(wo, wi)) return Brdf{};
+        return per_steradian(Reflectance{1.0}, si::pi);
+    }
+
+    SolidAngleDensity pdf(const Vec3& wo, const Vec3& wi) const {
+        if (!same_hemisphere(wo, wi)) return SolidAngleDensity{};
+        return SolidAngleDensity{0.5 * abs_cos_theta(wi) * si::inv_pi};
+    }
+};
+
 // ── The test ─────────────────────────────────────────────────────────────
 
 struct Result {
