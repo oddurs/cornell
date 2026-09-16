@@ -466,18 +466,52 @@ inline constexpr int default_max_depth = 256;
 // The ray is taken by value because the loop advances it; that is the
 // iteration, and handing it back to the caller modified would be a worse lie
 // than copying six doubles.
+// ── The trace, which is nothing by default ───────────────────────────────
+//
+// `replay.hpp` said, in v0.5, that a bounce-by-bounce trace was not being
+// written until something needed it, and that when it was it would be "a
+// template parameter with a no-op default and it costs nothing". Item 0070
+// needed it one item later: a firefly is a single path that returned an
+// enormous number, and the only way to say *why* is to watch what it did.
+//
+// So `radiance` takes a callable, called once per bounce with everything the
+// loop knows at that moment. The default does nothing, has no members, and is
+// inlined away — the generated code for the ordinary call is what it was, and
+// item 0058's timing is the check on that claim rather than this sentence.
+//
+// It is deliberately not an interface for changing anything. The trace is
+// handed values, not references it could write through; an integrator that a
+// diagnostic can reach into is an integrator with two behaviours.
+struct Bounce {
+    int depth = 0;
+    Vec3 point{};
+    double distance = 0.0;
+    bool emitter = false;
+    Radiance emitted{};         // what this hit contributed, before throughput
+    Reflectance before{};       // the throughput arriving
+    Reflectance after{};        // the throughput leaving, roulette included
+    double survival = 1.0;      // 1 where the roulette did not run
+    bool killed = false;
+};
+
+struct NoTrace {
+    constexpr void operator()(const Bounce&) const {}
+};
+
 // `roulette_start` is a parameter for the same reason `max_depth` is: it is a
 // knob an instrument has to turn. `converge.hpp`'s claim is that switching the
 // roulette off changes the noise and not the slope, and a claim about a switch
 // needs a switch. Passing a depth beyond `max_depth` turns it off — not as a
 // trick, but because "start the roulette after more bounces than there are" is
 // what off means.
+template <class Trace = NoTrace>
 inline Radiance radiance(const Scene& scene,
                          Ray ray,
                          const Wavelengths& lambdas,
                          Sampler& sampler,
                          int max_depth = default_max_depth,
-                         int roulette_start = roulette_start_depth) {
+                         int roulette_start = roulette_start_depth,
+                         const Trace& trace = Trace{}) {
     Radiance carried{};
 
     // The product of every `f · cos / pdf` so far: the fraction of whatever
@@ -500,7 +534,16 @@ inline Radiance radiance(const Scene& scene,
 
         // The Le term. Emission is one-sided, so a light seen from behind
         // contributes nothing and the path continues past it.
-        carried += throughput * emitted(*hit, wo, lambdas);
+        const Radiance arriving = emitted(*hit, wo, lambdas);
+        carried += throughput * arriving;
+
+        Bounce bounce;
+        bounce.depth = depth;
+        bounce.point = hit->point;
+        bounce.distance = hit->t;
+        bounce.emitter = hit->surface->emits();
+        bounce.emitted = arriving;
+        bounce.before = throughput;
 
         const Basis frame = hit->frame();
         const auto [u, v] = sampler.next2();
@@ -510,7 +553,12 @@ inline Radiance radiance(const Scene& scene,
         // Absorbed, or the surface refused this direction. Multiplying by
         // zero and continuing would give the same answer and cost the rest of
         // the loop.
-        if (scattered.is_black()) break;
+        if (scattered.is_black()) {
+            bounce.after = Reflectance{};
+            bounce.killed = true;
+            trace(bounce);
+            break;
+        }
 
         // ── The estimator ────────────────────────────────────────────────
         //
@@ -527,10 +575,18 @@ inline Radiance radiance(const Scene& scene,
         // every other division by a density in this project is.
         if (depth >= roulette_start) {
             const double survival = survival_probability(throughput);
-            if (survival <= 0.0) break;
-            if (sampler.next() >= survival) break;
+            bounce.survival = survival;
+            if (survival <= 0.0 || sampler.next() >= survival) {
+                bounce.after = throughput;
+                bounce.killed = true;
+                trace(bounce);
+                break;
+            }
             throughput = throughput * (1.0 / survival);
         }
+
+        bounce.after = throughput;
+        trace(bounce);
 
         // Leave along the sampled direction, from a point that is on the
         // correct side of the surface. The normal handed to the offset is the

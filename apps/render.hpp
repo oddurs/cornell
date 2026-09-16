@@ -181,6 +181,11 @@ struct RenderSettings {
     // past the depth limit, which is what off means; nothing else changes it.
     int roulette_start = render::roulette_start_depth;
 
+    // How many outliers to name. Zero prints none, which is the default: a
+    // render is not a diagnostic and the list is only useful to somebody who
+    // is going to replay them.
+    int outliers = 0;
+
     // Which samples to use, rather than how many.
     //
     // The sampler is addressed by `(pixel, sample)` rather than dispensed, so
@@ -461,6 +466,84 @@ inline int render(const RenderSettings& settings) {
                 total / (double(settings.width) * double(height)), brightest);
     std::printf("out of gamut: %ld of %d pixels have a negative sRGB component\n",
                 out_of_gamut, settings.width * height);
+
+    // ── The outliers, by address ─────────────────────────────────────────
+    //
+    // Item 0070's answer is that this project does not clamp, so the one
+    // thing it owes a reader is a way to look at what it is not clamping.
+    // The film keeps the brightest single sample each pixel saw and which
+    // sample it was; this prints the worst of them in the spelling
+    // `./cornell replay` takes.
+    if (settings.outliers > 0) {
+        struct Outlier {
+            double luminance;
+            double pixel_mean;
+            int x, y;
+            std::uint64_t sample;
+        };
+
+        std::vector<Outlier> worst;
+        worst.reserve(std::size_t(settings.width) * std::size_t(height));
+        for (int y = 0; y < height; ++y)
+            for (int x = 0; x < settings.width; ++x)
+                worst.push_back({film.brightest(x, y), film.mean_tristimulus(x, y).y,
+                                 x, y, film.brightest_sample(x, y)});
+
+        const std::size_t wanted =
+            std::min(std::size_t(settings.outliers), worst.size());
+        std::partial_sort(worst.begin(), worst.begin() + long(wanted), worst.end(),
+                          [](const Outlier& a, const Outlier& b) {
+                              return a.luminance > b.luminance;
+                          });
+
+        // The census first, because a list of ten is an anecdote.
+        //
+        // The statistic is a *share*: what fraction of everything a pixel
+        // received came from its single largest sample. An estimator whose
+        // samples all agree gives every pixel a share of 1/N; one carried by
+        // a single lucky path gives it a share of 1. It is scale-free, it
+        // does not care how bright the pixel is, and it does not mistake the
+        // lamp — which is bright in every sample — for an outlier.
+        //
+        // The first version of this counted samples worth more than twenty
+        // times their pixel's mean, which measured nothing: at 64 samples a
+        // pixel that caught the lamp once has a ratio of 64 by arithmetic,
+        // so the count came out as 98% of lit pixels and was really a
+        // measure of how rarely a path finds the light at all.
+        std::vector<double> shares;
+        shares.reserve(worst.size());
+        long over_half = 0;
+        for (const Outlier& o : worst) {
+            if (o.pixel_mean <= 0.0) continue;
+            const double share = o.luminance / (o.pixel_mean * double(settings.spp));
+            shares.push_back(share);
+            if (share > 0.5) ++over_half;
+        }
+        std::sort(shares.begin(), shares.end());
+
+        if (!shares.empty())
+            std::printf("\nthe largest single sample's share of its own pixel, over %zu lit\n"
+                        "pixels — an even estimator would give every one of them %.5f:\n"
+                        "  median %.4f, 99th percentile %.4f, and %ld pixels over a half\n",
+                        shares.size(), 1.0 / double(settings.spp),
+                        shares[shares.size() / 2], shares[shares.size() * 99 / 100],
+                        over_half);
+
+        std::printf("\nthe %zu brightest single samples, and what they did to their pixel:\n"
+                    "  %-18s %12s %12s %8s\n",
+                    wanted, "replay", "sample Y", "pixel Y", "ratio");
+
+        for (std::size_t i = 0; i < wanted; ++i) {
+            const Outlier& o = worst[i];
+            char address[48];
+            std::snprintf(address, sizeof address, "%d,%d,%llu", o.x, o.y,
+                          static_cast<unsigned long long>(o.sample));
+            std::printf("  %-18s %12.4g %12.4g %8.1f\n", address, o.luminance,
+                        o.pixel_mean, o.pixel_mean > 0.0 ? o.luminance / o.pixel_mean : 0.0);
+        }
+        std::printf("\n  ./cornell replay <address> %d   runs one of them again.\n",
+                    settings.width);
+    }
     std::printf("cornell.pfm   linear sRGB, three channels, unclipped — the file a\n"
                 "              number may be quoted from\n");
     std::printf("cornell.ppm   the same, exposed against Y = %.2f, tone mapped with\n"

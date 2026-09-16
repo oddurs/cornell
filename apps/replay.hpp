@@ -24,20 +24,27 @@
 // three times and compares bit for bit, because a reproduction that is not
 // reproducible is not one.
 //
-// It does not show the bounces. A bounce-by-bounce trace needs a hook inside
+// And it shows the bounces, which it did not when it was written. The first
+// version of this file said a bounce-by-bounce trace "needs a hook inside
 // `radiance()`, and the transport is not getting one for a diagnostic while
-// something cheaper works: what this gives you is one path, deterministically,
-// under one thread, which is a breakpoint away from every bounce it took. The
-// day that stops being enough, the hook is a template parameter with a no-op
-// default and it costs nothing — but it is not written until it is needed.
+// something cheaper works", and that "the day that stops being enough, the
+// hook is a template parameter with a no-op default and it costs nothing —
+// but it is not written until it is needed."
 //
-// It also does not go looking. It replays the address it is given, and the
-// address comes from the assertion that fired.
+// It was needed one item later. A firefly is a single path that came back
+// enormous, and the question item 0070 has to answer is *why* — which is a
+// question about what the path did rather than what it returned. So
+// `transport.hpp` has `Bounce` and `NoTrace` now, the default is inlined
+// away, and a render timed 1.41 s before and 1.41 s after.
+//
+// It does not go looking. It replays the address it is given, and the address
+// comes from the assertion that fired or from `./cornell render --outliers`.
 
 #pragma once
 
 #include <cstdio>
 #include <string_view>
+#include <vector>
 
 #include <render/camera.hpp>
 #include <render/film.hpp>
@@ -48,6 +55,16 @@
 #include "render.hpp"
 
 namespace app {
+
+// The largest component of a throughput, which is what `roulette.hpp` uses
+// for the same reason: killing a path kills it at every wavelength at once,
+// so the question is whether *any* of the four still carries something.
+inline double largest(const render::Reflectance& value) {
+    double most = value[0];
+    for (int i = 1; i < render::spectral_samples; ++i)
+        most = std::fmax(most, value[i]);
+    return most;
+}
 
 // `x,y,sample`, which is the spelling `film.hpp` prints. Returns false on
 // anything else rather than guessing, because a replay of the wrong path is
@@ -124,8 +141,13 @@ inline int replay(std::string_view address, const RenderSettings& settings) {
 
         const Wavelengths drawn = Wavelengths::sample(sampler.next());
         const Ray through = camera.ray_through(u, v);
+
+        std::vector<Bounce> bounces;
         const Radiance value = radiance(box, through, drawn, sampler,
-                                        default_max_depth, settings.roulette_start);
+                                        default_max_depth, settings.roulette_start,
+                                        [&](const Bounce& bounce) {
+                                            if (run == 0) bounces.push_back(bounce);
+                                        });
 
         if (run == 0) {
             carried = value;
@@ -143,6 +165,30 @@ inline int replay(std::string_view address, const RenderSettings& settings) {
             for (int i = 0; i < spectral_samples; ++i)
                 std::printf("  %8.3f nm      %.17g%s\n", si::as::nm(lambdas[i]), value[i],
                             std::isfinite(value[i]) ? "" : "   <- not a number");
+
+            // ── What it did ──────────────────────────────────────────────
+            //
+            // One row per bounce. `throughput` is the fraction of whatever
+            // the path finds next that survives back to the eye, and it is
+            // the column a firefly lives in: an ordinary path's throughput
+            // falls monotonically, and a path that survived a roulette coin
+            // is scaled *up* by the reciprocal of the probability it
+            // survived. Where that is followed by finding the lamp, the two
+            // together are the whole mechanism.
+            std::printf("\n  depth   distance   throughput      q      emitter\n");
+            for (const Bounce& bounce : bounces) {
+                char emitted[48] = "";
+                if (bounce.emitter)
+                    std::snprintf(emitted, sizeof emitted, "   Le = %.4g",
+                                  bounce.emitted[0]);
+
+                std::printf("  %5d   %8.4f   %10.4g  %6.4f  %-6s%s\n",
+                            bounce.depth, bounce.distance,
+                            largest(bounce.after), bounce.survival,
+                            bounce.killed ? "ended" : "", emitted);
+            }
+            if (bounces.empty())
+                std::printf("      (the ray left the scene without hitting anything)\n");
         } else {
             bool identical = true;
             for (int i = 0; i < spectral_samples; ++i)

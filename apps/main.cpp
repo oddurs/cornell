@@ -68,7 +68,7 @@ void print_witnesses() {
                     int(w.milestone.size()), w.milestone.data(),
                     w.built ? "built" : "",
                     int(w.witnesses.size()), w.witnesses.data());
-    std::printf("\n  ./cornell render [width] [--spp N]\n");
+    std::printf("\n  ./cornell render [width] [--spp N] [--outliers N]\n");
     std::printf("  ./cornell spectrum [d65|e|x|y|z|red-wall|green-wall|white-wall]\n");
     std::printf("  ./cornell spec\n");
     std::printf("  ./cornell verify\n"
@@ -159,6 +159,8 @@ int main(int argc, char* argv[]) {
             else if (arg == "--lamp" && i + 1 < argc) settings.tungsten = std::string_view{argv[++i]} == "a";
             else if (arg == "--no-adapt") settings.adapt = false;
             else if (arg == "--threads" && i + 1 < argc) settings.threads = integer_or(argv[++i], 0);
+            else if (arg == "--outliers" && i + 1 < argc) settings.outliers = integer_or(argv[++i], 10);
+            else if (arg == "--no-roulette") settings.roulette_start = render::default_max_depth + 1;
             else settings.width = integer_or(arg, settings.width);
         }
         return app::render(settings);
