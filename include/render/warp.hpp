@@ -107,6 +107,7 @@
 #pragma once
 
 #include <cmath>
+#include <render/density.hpp>
 #include <render/si.hpp>
 #include <render/vec.hpp>
 
@@ -114,8 +115,8 @@ namespace render {
 
 // A direction and the density it was drawn with. Never one without the other.
 struct DirectionSample {
-    Vec3 direction{};   // in the local frame, where the normal is +z
-    double pdf = 0.0;   // per steradian
+    Vec3 direction{};          // in the local frame, where the normal is +z
+    SolidAngleDensity pdf{};   // sr⁻¹, and the type says so
 };
 
 // A point on the unit disc, uniformly, preserving shape as well as area.
@@ -149,8 +150,8 @@ inline Vec3 concentric_disc(double u, double v) {
 // Below the horizon the density is zero rather than negative, because a
 // direction that is not in the hemisphere was not drawn from this
 // distribution and the honest density of an impossible event is nought.
-constexpr double cosine_hemisphere_pdf(double cos_theta) {
-    return cos_theta > 0.0 ? cos_theta * si::inv_pi : 0.0;
+constexpr SolidAngleDensity cosine_hemisphere_pdf(double cos_theta) {
+    return SolidAngleDensity{cos_theta > 0.0 ? cos_theta * si::inv_pi : 0.0};
 }
 
 // Malley's method: a uniform point on the disc, lifted.

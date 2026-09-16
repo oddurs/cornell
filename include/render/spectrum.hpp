@@ -66,6 +66,7 @@
 #include <cmath>
 #include <concepts>
 #include <cstddef>
+#include <render/density.hpp>
 #include <render/si.hpp>
 
 namespace render {
@@ -271,9 +272,54 @@ static_assert(SpectralValue<Measured<2>>);
 
 struct RadianceTag;     // L, W·m⁻²·sr⁻¹·m⁻¹  — what a path carries
 struct ReflectanceTag;  // unitless in [0,1]  — what a surface keeps
+struct BrdfTag;         // f, sr⁻¹, unbounded — what a surface does
 
 using Radiance    = Sampled<RadianceTag>;
 using Reflectance = Sampled<ReflectanceTag>;
+using Brdf        = Sampled<BrdfTag>;
+
+// ── Why a BRDF is its own type ───────────────────────────────────────────
+//
+// It was a `Reflectance` for four milestones and it is not one. A
+// reflectance is dimensionless and at most 1 — it is the fraction of arriving
+// light a surface keeps. A BRDF is that fraction *per steradian*: it is
+// unbounded, a mirror's is a delta function, and a rough conductor's is
+// routinely far above 1 near the specular lobe. Typing them the same way
+// makes `f` look like something that could be compared against 1, which is
+// how an energy-conservation check gets written against the wrong quantity.
+//
+// The two operations below are the only ways in and out, and between them
+// they are the sr⁻¹'s entire life in this program. A `Brdf` cannot multiply a
+// `Radiance`, because `f · L` is not a radiance and the compiler now says so
+// where it used to agree; the only thing that scales light is a
+// `Reflectance`, and the only way to get one from a `Brdf` is to divide by a
+// density over the same directions.
+
+// In: a reflectance spread over a solid angle. `lambert.hpp` spreads its
+// albedo over the projected hemisphere — pi steradians, which that file
+// derives by integrating the cosine — and that division is where every sr⁻¹
+// in this project is born.
+constexpr Brdf per_steradian(const Reflectance& rho, double steradians) {
+    Brdf f;
+    for (int i = 0; i < spectral_samples; ++i) f[i] = rho[i] / steradians;
+    return f;
+}
+
+// Out: `f / pdf`, the Monte Carlo estimator's first factor, dimensionless
+// because the sr⁻¹ in the numerator is the sr⁻¹ in the denominator.
+//
+// This is the cancellation house rule 3 insists on writing out in full at the
+// point of use, and writing it out is now also the only way to perform it.
+// The rule says the divides cost nothing the optimiser will not delete; what
+// it did not say, and what this operator adds, is that they are also the one
+// place the units work out — so a caller who collapses them into a tidier
+// number is not merely giving up multiple importance sampling later, they are
+// deleting the step where the steradian goes away.
+constexpr Reflectance operator/(const Brdf& f, const SolidAngleDensity& pdf) {
+    Reflectance out;
+    for (int i = 0; i < spectral_samples; ++i) out[i] = f[i] / pdf.per_steradian();
+    return out;
+}
 
 // Light meeting a surface. This is the only cross-type operation there is,
 // and it is the only one that means anything: a reflectance scales a

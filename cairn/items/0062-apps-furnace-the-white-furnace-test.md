@@ -33,6 +33,14 @@ A blank white square, and the residual as a number:
     $ ./cornell furnace --bsdf lambert
     lambert          rho=1.0    residual 0.0000000   vanished
 
+## What it is expressed in
+
+Item 0151 made `Brdf` a type distinct from `Reflectance`, and left this item
+the criterion it could not tick itself. The furnace's claim is precisely that
+the *integral* of a BRDF against the cosine over the hemisphere is a
+reflectance — dimensionless, at most 1 — while the integrand is not, and it
+must be written in those two types rather than in one type used for both.
+
 ## What it may not do
 
 Special-case anything. The furnace is the ordinary integrator pointed at an

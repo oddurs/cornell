@@ -126,12 +126,12 @@ inline BsdfSample sample(const Bsdf& bsdf, const Vec3& wo,
     return std::visit([&](const auto& model) { return model.sample(wo, lambdas, u, v); }, bsdf);
 }
 
-inline Reflectance eval(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi,
-                        const Wavelengths& lambdas) {
+inline Brdf eval(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi,
+                 const Wavelengths& lambdas) {
     return std::visit([&](const auto& model) { return model.eval(wo, wi, lambdas); }, bsdf);
 }
 
-inline double pdf(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi) {
+inline SolidAngleDensity pdf(const Bsdf& bsdf, const Vec3& wo, const Vec3& wi) {
     return std::visit([&](const auto& model) { return model.pdf(wo, wi); }, bsdf);
 }
 

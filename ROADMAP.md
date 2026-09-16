@@ -92,7 +92,7 @@ A spectrum is a function of wavelength and a monitor has three primaries, and th
 
 ## v0.4 — The box, as measured
 
-`##########` 100% · 13 of 13 done
+`##########` 100% · 14 of 14 done
 
 The scene arrives, and it is not a scene. It is a plywood box built at Cornell, painted, lit, and photographed with a calibrated radiometer, published with the spectral reflectance of every wall so that a renderer has something to be right about.
 
@@ -109,12 +109,13 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 - [x] [`0059`](https://github.com/oddurs/cornell/blob/main/cairn/items/0059-tile-based-threading-with-std-jthread-and-nothing-else.md) Tile-based threading with std::jthread, and nothing else <sup>optics · p2 · transport</sup>
 - [x] [`0060`](https://github.com/oddurs/cornell/blob/main/cairn/items/0060-prose-cornell-hpp-s-opening-in-the-lab-notebook-voice.md) Prose: cornell.hpp's opening, in the lab-notebook voice <sup>prose · p2 · prose</sup>
 - [x] [`0061`](https://github.com/oddurs/cornell/blob/main/cairn/items/0061-admit-that-the-plywood-is-not-lambertian.md) Admit that the plywood is not Lambertian <sup>prose · p2 · prose · admission</sup>
+- [x] [`0151`](https://github.com/oddurs/cornell/blob/main/cairn/items/0151-a-brdf-is-not-a-reflectance-and-the-types-do-not-say-so.md) A BRDF is not a reflectance, and the types do not say so <sup>chore · p2 · spectrum</sup>
 - [x] [`0156`](https://github.com/oddurs/cornell/blob/main/cairn/items/0156-what-the-second-code-review-found.md) What the second code review found <sup>chore · p1 · verification</sup>
 - [x] [`0157`](https://github.com/oddurs/cornell/blob/main/cairn/items/0157-there-is-no-mesh-and-the-reason-is-measurable.md) There is no mesh, and the reason is measurable <sup>chore · p1 · geometry</sup>
 
 ## v0.5 — It has to be right
 
-`··········` 0% · 0 of 12 done
+`··········` 0% · 0 of 11 done
 
 The instruments of proof, built before the physics they will judge, because a check written after the thing it checks is a check written to pass.
 
@@ -130,7 +131,6 @@ The instruments of proof, built before the physics they will judge, because a ch
 - [ ] [`0069`](https://github.com/oddurs/cornell/blob/main/cairn/items/0069-verify-no-nan-survives-to-the-film-asserted.md) Verify: no NaN survives to the film, asserted <sup>verify · p2 · verification</sup>
 - [ ] [`0070`](https://github.com/oddurs/cornell/blob/main/cairn/items/0070-fireflies-diagnose-rather-than-clamp.md) Fireflies: diagnose rather than clamp <sup>spike · p2 · transport · admission</sup>
 - [ ] [`0071`](https://github.com/oddurs/cornell/blob/main/cairn/items/0071-prose-why-the-instruments-are-built-before-the-physics.md) Prose: why the instruments are built before the physics <sup>prose · p2 · prose</sup>
-- [ ] [`0151`](https://github.com/oddurs/cornell/blob/main/cairn/items/0151-a-brdf-is-not-a-reflectance-and-the-types-do-not-say-so.md) A BRDF is not a reflectance, and the types do not say so <sup>chore · p2 · spectrum</sup>
 - [ ] [`0153`](https://github.com/oddurs/cornell/blob/main/cairn/items/0153-transport-hpp-is-three-files-in-a-trenchcoat.md) transport.hpp is three files in a trenchcoat <sup>chore · p2 · prose</sup>
 
 ## v0.6 — You never type a colour

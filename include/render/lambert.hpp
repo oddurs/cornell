@@ -140,21 +140,26 @@ public:
     // refusing is deliberate — `wi` on the wrong side is a perfectly ordinary
     // question for the integrator to ask, and the answer is that no light
     // goes that way.
-    constexpr Reflectance eval(const Vec3& wo, const Vec3& wi,
-                               const Wavelengths& lambdas) const {
-        if (!same_hemisphere(wo, wi)) return Reflectance{};
+    constexpr Brdf eval(const Vec3& wo, const Vec3& wi,
+                        const Wavelengths& lambdas) const {
+        if (!same_hemisphere(wo, wi)) return Brdf{};
 
         // The albedo, evaluated at the four wavelengths this path carries.
         // This is the line the whole v0.3 signature change exists for.
         Reflectance rho;
         for (int i = 0; i < spectral_samples; ++i) rho[i] = albedo_.at(lambdas[i]);
-        return rho * (1.0 / projected_hemisphere);
+
+        // And the division that turns it into a BRDF. The reflectance is a
+        // fraction; spread over the steradians it is scattered into, it
+        // becomes a fraction per steradian, which is what `f` is. This is the
+        // only place in the project a `Brdf` is made.
+        return per_steradian(rho, projected_hemisphere);
     }
 
     // The density `sample` would have drawn this direction with. Separate
     // from `sample` on purpose; `bsdf.hpp` says why at length.
-    double pdf(const Vec3& wo, const Vec3& wi) const {
-        if (!same_hemisphere(wo, wi)) return 0.0;
+    SolidAngleDensity pdf(const Vec3& wo, const Vec3& wi) const {
+        if (!same_hemisphere(wo, wi)) return SolidAngleDensity{};
         return cosine_hemisphere_pdf(abs_cos_theta(wi));
     }
 
