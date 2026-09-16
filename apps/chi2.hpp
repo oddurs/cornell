@@ -316,6 +316,30 @@ struct HalfADensity {
     }
 };
 
+// And a fourth, for reciprocity. It weights the incoming direction and not
+// the outgoing one, which is the shape of every BRDF somebody has invented by
+// multiplying a cosine into the wrong place — and it is a perfectly good
+// density's worth of nonsense: it conserves nothing in particular, it samples
+// honestly, and swapping its arguments changes the answer.
+struct NotReciprocal {
+    BsdfSample sample(const Vec3& wo, const Wavelengths& lambdas, double u, double v) const {
+        DirectionSample drawn = cosine_hemisphere(u, v);
+        if (wo.z < 0.0) drawn.direction.z = -drawn.direction.z;
+        return BsdfSample{drawn.direction, eval(wo, drawn.direction, lambdas),
+                          pdf(wo, drawn.direction)};
+    }
+
+    Brdf eval(const Vec3& wo, const Vec3& wi, const Wavelengths&) const {
+        if (!same_hemisphere(wo, wi)) return Brdf{};
+        return per_steradian(Reflectance{0.5 * (1.0 + abs_cos_theta(wi))}, si::pi);
+    }
+
+    SolidAngleDensity pdf(const Vec3& wo, const Vec3& wi) const {
+        if (!same_hemisphere(wo, wi)) return SolidAngleDensity{};
+        return cosine_hemisphere_pdf(abs_cos_theta(wi));
+    }
+};
+
 // ── The test ─────────────────────────────────────────────────────────────
 
 struct Result {
