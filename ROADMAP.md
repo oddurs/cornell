@@ -116,14 +116,13 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 
 ## v0.5 — It has to be right
 
-`###·······` 30% · 3 of 10 done
+`####······` 40% · 4 of 10 done
 
 The instruments of proof, built before the physics they will judge, because a check written after the thing it checks is a check written to pass.
 
 ### backlog
 
 - [ ] [`0065`](https://github.com/oddurs/cornell/blob/main/cairn/items/0065-apps-verify-the-inspection-sheet.md) apps/verify: the inspection sheet <sup>instrument · p0 · instrument</sup>
-- [ ] [`0066`](https://github.com/oddurs/cornell/blob/main/cairn/items/0066-verify-lambert-vanishes-in-the-furnace.md) Verify: Lambert vanishes in the furnace <sup>verify · p0 · verification</sup>
 - [ ] [`0067`](https://github.com/oddurs/cornell/blob/main/cairn/items/0067-verify-every-pdf-in-the-project-integrates-to-one.md) Verify: every pdf in the project integrates to one <sup>verify · p0 · verification</sup>
 - [ ] [`0068`](https://github.com/oddurs/cornell/blob/main/cairn/items/0068-verify-reciprocity-and-where-it-is-legitimately-violated.md) Verify: reciprocity, and where it is legitimately violated <sup>verify · p2 · verification · admission</sup>
 - [ ] [`0069`](https://github.com/oddurs/cornell/blob/main/cairn/items/0069-verify-no-nan-survives-to-the-film-asserted.md) Verify: no NaN survives to the film, asserted <sup>verify · p2 · verification</sup>
@@ -135,6 +134,7 @@ The instruments of proof, built before the physics they will judge, because a ch
 - [x] [`0062`](https://github.com/oddurs/cornell/blob/main/cairn/items/0062-apps-furnace-the-white-furnace-test.md) apps/furnace: the white furnace test <sup>instrument · p0 · instrument · thesis</sup>
 - [x] [`0063`](https://github.com/oddurs/cornell/blob/main/cairn/items/0063-apps-chi2-catch-a-sampling-routine-lying-about-its-own-density.md) apps/chi2: catch a sampling routine lying about its own density <sup>instrument · p0 · instrument · thesis</sup>
 - [x] [`0064`](https://github.com/oddurs/cornell/blob/main/cairn/items/0064-apps-converge-the-slope-is-minus-one-half-or-the-estimator-is-biased.md) apps/converge: the slope is minus one half or the estimator is biased <sup>instrument · p0 · instrument</sup>
+- [x] [`0066`](https://github.com/oddurs/cornell/blob/main/cairn/items/0066-verify-lambert-vanishes-in-the-furnace.md) Verify: Lambert vanishes in the furnace <sup>verify · p0 · verification</sup>
 
 ## v0.6 — You never type a colour
 
