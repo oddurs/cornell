@@ -522,10 +522,22 @@ inline int verify() {
     // compensated for by turning the light down until it looks right, and
     // then never found.
     //
-    // It is the one thing `./cornell chi2` cannot see. Pearson's statistic
-    // compares an observed histogram against an expected one after both have
-    // been scaled by the number of draws, so a density that is uniformly half
-    // what it claims passes with a perfect p-value.
+    // It was written in the belief that `./cornell chi2` could not see this,
+    // on the textbook reasoning that Pearson's statistic compares shapes. That
+    // is true of a chi-squared that renormalises its expectations to the
+    // observed total, and this project's does not: the expected count is the
+    // density integrated over the bin times the number of draws, so a missing
+    // factor of two is a chi2/dof of 515 rather than a perfect fit. The
+    // blindness-matrix section at the end of this sheet is what found that
+    // out, by running every liar through every check instead of each one
+    // through its own.
+    //
+    // This section is still the one worth having for it, for two reasons that
+    // survive the correction. It is exact rather than statistical — a
+    // deviation of -5.000e-01 rather than a p-value — and it needs no sampler
+    // at all, which is the only form available in v0.8, where multiple
+    // importance sampling evaluates one strategy's density on directions
+    // another strategy produced.
     //
     // Each is integrated over its own domain by a midpoint rule that does not
     // call the sampling routine it belongs to. And the domains are not the
@@ -853,6 +865,137 @@ inline int verify() {
                     "  nothing, the path escapes, and what arrives at the film is a\n"
                     "  perfectly finite zero. The failure is a black image rather than a\n"
                     "  poisoned one, and no assertion at the film can catch it.\n");
+    }
+
+    // ── What each instrument is blind to ─────────────────────────────────
+    //
+    // Item 0071. The roadmap's most deliberate feature is that the furnace,
+    // the chi-squared test and the convergence plot are built at v0.5 and the
+    // microfacet model that will fail all three arrives at v0.7. A check
+    // written after the thing it checks is a check written to pass.
+    //
+    // The other half of that argument is the one it is easy to skip: the
+    // instruments test what they test and no more, and saying so is the
+    // difference between a project that is careful and a project that claims
+    // to be. So rather than four sections each asserting that its own liar
+    // was caught, every liar is run through every check, and the misses are
+    // printed beside the catches.
+    //
+    // The result is a matrix with no row and no column that could be removed,
+    // which is a stronger statement than any of the sections above makes on
+    // its own — and it is measured here rather than asserted in a README,
+    // because a claim about what a test cannot see is exactly the kind that
+    // rots when the test changes.
+    {
+        using namespace chi2_detail;
+        using namespace furnace_detail;
+
+        std::printf("\nNo instrument catches everything, and none of them is redundant.\n\n");
+
+        const Vec3 wo{std::sin(0.6), 0.0, std::cos(0.6)};
+        const Wavelengths lambdas = Wavelengths::sample(0.5);
+        // A million, because the power curve in `./cornell chi2` says a two
+        // percent error needs about that many and is passed at a quarter of
+        // it. A matrix taken at 2^18 shows that row escaping every column,
+        // which would be a true statement about a weaker test than this one.
+        constexpr int draws = 1 << 20;
+        constexpr int cells = 256;
+
+        // Each column asks its own question of a model, and answers whether
+        // that model was caught by it.
+        const auto conserves_energy = [&](const auto& model) {
+            return std::fabs(directional_albedo_by_quadrature(model, wo, cells, cells) - 1.0)
+                   < 1e-9;
+        };
+
+        const auto agrees_with_its_density = [&](const auto& model) {
+            return test(model, wo, draws, seed_liar).p > 0.01;
+        };
+
+        const auto is_a_density = [&](const auto& model) {
+            const double mu_width = 2.0 / double(cells);
+            const double phi_width = si::two_pi / double(cells);
+            double total = 0.0;
+            for (int i = 0; i < cells; ++i) {
+                const double mu = -1.0 + mu_width * (double(i) + 0.5);
+                const double sin_theta = std::sqrt(std::fmax(0.0, 1.0 - mu * mu));
+                for (int j = 0; j < cells; ++j) {
+                    const double phi = phi_width * (double(j) + 0.5);
+                    total += model.pdf(wo, Vec3{sin_theta * std::cos(phi),
+                                                sin_theta * std::sin(phi), mu})
+                                  .per_steradian();
+                }
+            }
+            return std::fabs(total * mu_width * phi_width - 1.0) < 1e-6;
+        };
+
+        const auto is_reciprocal = [&](const auto& model) {
+            for (int i = 0; i < 4096; ++i) {
+                Sampler sampler{0x51ed'2701'a9e3'31b7, std::uint64_t(i)};
+                const auto [u1, v1] = sampler.next2();
+                const auto [u2, v2] = sampler.next2();
+
+                const auto on_the_sphere = [](double u, double v) {
+                    const double mu = 2.0 * u - 1.0;
+                    const double r = std::sqrt(std::fmax(0.0, 1.0 - mu * mu));
+                    return Vec3{r * std::cos(si::two_pi * v), r * std::sin(si::two_pi * v), mu};
+                };
+
+                const Vec3 a = on_the_sphere(u1, v1);
+                const Vec3 b = on_the_sphere(u2, v2);
+                const Brdf forward = model.eval(a, b, lambdas);
+                const Brdf backward = model.eval(b, a, lambdas);
+                for (int k = 0; k < spectral_samples; ++k)
+                    if (forward[k] != backward[k]) return false;
+            }
+            return true;
+        };
+
+        std::printf("  %-34s %8s %8s %8s %8s\n",
+                    "deliberately wrong model", "furnace", "chi2", "density", "swapped");
+
+        int caught_total = 0;
+        const auto row = [&](const char* name, const auto& model) {
+            const bool furnace_misses = conserves_energy(model);
+            const bool chi2_misses = agrees_with_its_density(model);
+            const bool density_misses = is_a_density(model);
+            const bool swap_misses = is_reciprocal(model);
+
+            const int caught = int(!furnace_misses) + int(!chi2_misses)
+                             + int(!density_misses) + int(!swap_misses);
+            caught_total += caught;
+            all_agree = all_agree && caught > 0;
+
+            std::printf("  %-34s %8s %8s %8s %8s\n", name,
+                        furnace_misses ? "-" : "caught", chi2_misses ? "-" : "caught",
+                        density_misses ? "-" : "caught", swap_misses ? "-" : "caught");
+        };
+
+        row("claims a flat density",        ClaimsUniform{});
+        row("claims one 2% too steep",      ClaimsTwoPer{});
+        row("a density that is half of one", HalfADensity{});
+        row("weights only the incoming ray", NotReciprocal{});
+
+        std::printf("\n  Four models, each wrong in one way, none caught by every column.\n"
+                    "  The furnace and the swap each catch something nothing else does,\n"
+                    "  and the chi-squared catches two the furnace cannot see at all: a\n"
+                    "  density can be wrong by two percent and conserve energy exactly.\n"
+                    "\n  The density column is the honest exception, and it is worth saying\n"
+                    "  rather than arranging a fifth liar to justify it. Nothing here is\n"
+                    "  caught by it alone. A sampler that draws from a normalised\n"
+                    "  distribution and reports an unnormalised density is the row above,\n"
+                    "  and the chi-squared sees it because this implementation compares\n"
+                    "  against the density times the draw count rather than renormalising\n"
+                    "  to the observed total — so a missing factor of two is a chi2/dof of\n"
+                    "  515 rather than a perfect fit. A density that is unnormalised and\n"
+                    "  whose sampler agrees with it cannot exist, because the missing half\n"
+                    "  has to go somewhere.\n"
+                    "\n  What the column is for arrives in v0.8. Multiple importance\n"
+                    "  sampling evaluates one strategy's density on another strategy's\n"
+                    "  directions, which is a use of a pdf with no sampler of its own\n"
+                    "  attached — and there a chi-squared has nothing to compare. It is\n"
+                    "  also exact where the chi-squared is statistical: -5.000e-01 against\n"
+                    "  a p-value.\n");
     }
 
     std::printf("\n%s\n", all_agree

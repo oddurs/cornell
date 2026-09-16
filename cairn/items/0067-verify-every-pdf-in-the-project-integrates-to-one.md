@@ -29,24 +29,35 @@ by a constant factor, which is exactly the kind of error that gets
 compensated for by adjusting the light's intensity until it looks right, and
 then never found.
 
-## Why this is not already covered by the chi-squared
+## Why this is not covered by the chi-squared — corrected
 
-It looks as though it should be. `./cornell chi2` compares a sampler against
-its own density over the whole sphere and would surely notice a density that
-was half of one.
+This item was written and closed on the argument that `./cornell chi2` is
+blind to a normalisation error, because Pearson's statistic compares *shapes*:
+halve every density, renormalise the expectations to the draw count, and they
+come back unchanged.
 
-It would not, and the reason is what Pearson's statistic is. The expected
-count in a cell is the density's share of the total times the number of draws,
-so halving every density halves every expectation, and dividing through by the
-new total gives back exactly the expectations it started with. The statistic
-compares *shapes*. A density that is uniformly half of one has the right shape,
-agrees with its own sampler perfectly, conserves energy, and renders an image
-that is uniformly wrong.
+**That is true of a chi-squared that renormalises, and this project's does
+not.** Item 0071's blindness matrix — every deliberate liar through every
+check, rather than each one through its own — measured the half-density at
+chi2/dof 515 and p = 0. The expected count here is the density integrated over
+the bin times the number of draws, full stop, so a missing factor of two shows
+up as one.
 
-So there is a third deliberate liar beside the two in `chi2.hpp` — same
-cosine-weighted shape, half the magnitude — and this section is the one that
-catches it. Measured: -5.000e-01, against every other check on the sheet
-passing it.
+Which makes the chi-squared stronger than the textbook version rather than
+weaker, and leaves this section standing for two reasons that survive the
+correction:
+
+- It is **exact rather than statistical**: -5.000e-01, not a p-value.
+- It needs **no sampler**. That is the form v0.8 requires, where multiple
+  importance sampling evaluates one strategy's density on directions another
+  strategy produced, and a chi-squared has nothing to compare against.
+
+The honest version of the original claim is narrower and still worth making: a
+density that is unnormalised *and* whose sampler agrees with it cannot exist,
+because the missing half has to go somewhere. The half-density liar is a
+sampler drawing from a normalised distribution while reporting an unnormalised
+one, and that is a disagreement — which is exactly what the chi-squared is
+for.
 
 ## What was integrated
 

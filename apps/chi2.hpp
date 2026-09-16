@@ -288,15 +288,23 @@ struct CosinePowerLiar {
 using ClaimsUniform  = CosinePowerLiar<0, 1>;      // cos^0: flat over the hemisphere
 using ClaimsTwoPer   = CosinePowerLiar<102, 100>;  // cos^1.02, which is nearly right
 
-// A third liar, for the check chi-squared cannot make. This one has the right
-// *shape* — cosine-weighted, exactly what it draws — and half the magnitude,
-// so it agrees with its own sampler perfectly and is not a density at all.
+// A third liar: the right *shape* — cosine-weighted, exactly what it draws —
+// and half the magnitude, so it is not a density at all.
 //
-// Pearson's statistic is blind to it: the expected counts are the density
-// times the number of draws, and scaling every expectation by a half and then
-// renormalising to the draw count gives back the same expectations. It is
-// `verify.hpp`'s normalisation section that catches this one, which is why
-// that section exists next to a test that appears to cover it.
+// It was added in the belief that this test would be blind to it, on the
+// textbook reasoning that Pearson's statistic compares shapes: scale every
+// expectation by a half, renormalise to the draw count, and the expectations
+// come back unchanged. That reasoning is about a chi-squared that renormalises
+// and this one does not. The expected count here is the density integrated
+// over the bin times the number of draws, full stop, so a missing factor of
+// two is a chi2/dof of 515 and a p-value of zero rather than a perfect fit.
+//
+// Which makes this test stronger than the textbook one — it tests the
+// normalisation and the shape together — and it is worth knowing which of the
+// two a failure means. `verify.hpp`'s normalisation section is the one that
+// separates them: it integrates the density and says so exactly, with no
+// draws and no sampler, which is also the only form available in v0.8 when a
+// density is evaluated on directions its own sampler did not produce.
 struct HalfADensity {
     BsdfSample sample(const Vec3& wo, const Wavelengths& lambdas, double u, double v) const {
         DirectionSample drawn = cosine_hemisphere(u, v);

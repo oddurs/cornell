@@ -96,6 +96,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include <render/camera.hpp>
@@ -114,6 +115,26 @@ namespace app {
 namespace furnace_detail {
 
 using namespace render;
+
+// The two calls this file makes, spelled so that they work on a `Bsdf` — which
+// dispatches through free functions, because `scene.hpp` wanted a model to be
+// a plain struct that knows nothing about the variant it ends up in — and on a
+// plain model, which has them as members. `verify.hpp` needs the second: the
+// deliberately wrong BSDFs it runs through this quadrature are not materials
+// and are not in anybody's variant.
+template <class Model>
+Brdf model_eval(const Model& model, const Vec3& wo, const Vec3& wi,
+                const Wavelengths& lambdas) {
+    if constexpr (std::is_same_v<Model, Bsdf>) return eval(model, wo, wi, lambdas);
+    else return model.eval(wo, wi, lambdas);
+}
+
+template <class Model>
+BsdfSample model_sample(const Model& model, const Vec3& wo,
+                        const Wavelengths& lambdas, double u, double v) {
+    if constexpr (std::is_same_v<Model, Bsdf>) return sample(model, wo, lambdas, u, v);
+    else return model.sample(wo, lambdas, u, v);
+}
 
 // The wavelengths every measurement below is taken at. A flat albedo is the
 // same number at all four, so one draw is enough and a fixed one keeps the
@@ -135,8 +156,9 @@ inline Wavelengths fixed_wavelengths() { return Wavelengths::sample(0.5); }
 // midpoint rule on a uniform grid converges on it without adapting.
 //
 // `sample` and `pdf` are not called. That is the point of this one.
-inline double directional_albedo_by_quadrature(const Bsdf& bsdf, const Vec3& wo,
-                                               int mu_cells, int phi_cells) {
+template <class Model>
+double directional_albedo_by_quadrature(const Model& model, const Vec3& wo,
+                                        int mu_cells, int phi_cells) {
     const Wavelengths lambdas = fixed_wavelengths();
     const double cell = si::two_pi / (double(mu_cells) * double(phi_cells));
 
@@ -150,7 +172,7 @@ inline double directional_albedo_by_quadrature(const Bsdf& bsdf, const Vec3& wo,
             const Vec3 wi{sin_theta * std::cos(phi), sin_theta * std::sin(phi), mu};
 
             // The first component; a flat albedo is the same at all four.
-            total += eval(bsdf, wo, wi, lambdas)[0] * mu;
+            total += model_eval(model, wo, wi, lambdas)[0] * mu;
         }
     }
     return total * cell;
@@ -164,7 +186,8 @@ inline double directional_albedo_by_quadrature(const Bsdf& bsdf, const Vec3& wo,
 //
 // The sampler is addressed rather than dispensed, exactly as in the film
 // loop, so this figure does not depend on how it is called.
-inline double directional_albedo_by_sampling(const Bsdf& bsdf, const Vec3& wo, int draws) {
+template <class Model>
+double directional_albedo_by_sampling(const Model& model, const Vec3& wo, int draws) {
     const Wavelengths lambdas = fixed_wavelengths();
 
     double total = 0.0;
@@ -172,7 +195,7 @@ inline double directional_albedo_by_sampling(const Bsdf& bsdf, const Vec3& wo, i
         Sampler sampler{0x0f0f'0f0f'0f0f'0f0fULL, std::uint64_t(i)};
         const auto [u, v] = sampler.next2();
 
-        const BsdfSample drawn = sample(bsdf, wo, lambdas, u, v);
+        const BsdfSample drawn = model_sample(model, wo, lambdas, u, v);
         if (drawn.is_black()) continue;
 
         // f · cos / pdf. A Brdf, scaled by a cosine, divided by a density:
