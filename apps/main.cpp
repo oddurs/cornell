@@ -55,7 +55,7 @@ void print_witnesses() {
                     w.built ? "built" : "",
                     int(w.witnesses.size()), w.witnesses.data());
     std::printf("\n  ./cornell render [width] [--spp N]\n");
-    std::printf("  ./cornell spectrum [d65|e|x|y|z]\n");
+    std::printf("  ./cornell spectrum [d65|e|x|y|z|red-wall|green-wall|white-wall]\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");

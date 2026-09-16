@@ -222,6 +222,53 @@ struct Flat {
 
 static_assert(SpectralValue<Flat>);
 
+// A spectrum somebody measured: a first wavelength, a step, and the samples.
+//
+// Every measured data set this project will use comes on its own grid —
+// Cornell's walls at 4 nm from 400 to 700, the CIE observer at 5 nm from 360
+// to 830, Johnson and Christy's metals at intervals that are not even uniform
+// — so the grid travels with the numbers rather than being a global
+// convention that half the data does not obey.
+//
+// Outside the measured range it returns the nearest end rather than zero.
+// That is a choice and it is the less wrong one: a wall does not stop
+// reflecting at 701 nm, and this project samples wavelengths out to 830 where
+// the observer is not quite zero. Reporting 0 there would darken every
+// surface by however much of the observer lies outside the data, which is a
+// systematic error; holding the endpoint is an extrapolation, which is an
+// admission. `cornell.hpp` says how much of the observer that is.
+template <std::size_t N>
+struct Measured {
+    double first = 0.0;
+    double step = 0.0;
+    std::array<double, N> table{};
+
+    constexpr double at(double lambda) const {
+        const double last = first + step * double(N - 1);
+        if (lambda <= first) return table[0];
+        if (lambda >= last)  return table[N - 1];
+
+        const double position = (lambda - first) / step;
+        const std::size_t index = std::size_t(position);
+        const double fraction = position - double(index);
+        return table[index] * (1.0 - fraction) + table[index + 1] * fraction;
+    }
+
+    constexpr double lowest() const {
+        double m = table[0];
+        for (std::size_t i = 1; i < N; ++i) m = table[i] < m ? table[i] : m;
+        return m;
+    }
+
+    constexpr double highest() const {
+        double m = table[0];
+        for (std::size_t i = 1; i < N; ++i) m = table[i] > m ? table[i] : m;
+        return m;
+    }
+};
+
+static_assert(SpectralValue<Measured<2>>);
+
 struct RadianceTag;     // L, W·m⁻²·sr⁻¹·m⁻¹  — what a path carries
 struct ReflectanceTag;  // unitless in [0,1]  — what a surface keeps
 
