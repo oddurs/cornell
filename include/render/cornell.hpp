@@ -223,6 +223,52 @@ inline constexpr WallSpectrum red = {reflectance_first, reflectance_step, {
     0.657, 0.639, 0.635, 0.642,
 }};
 
+// ── The paint is not Lambertian, and Cornell says so first ───────────────
+//
+// ASSUMED, and by them rather than by this project. The data page states it
+// plainly before giving a single number:
+//
+//      Surfaces are assumed to be Lambertian.
+//
+// Assumed. Not measured to be. The reflectances below were measured with a
+// spectrometer at one geometry, and the model that turns one number per
+// wavelength into a BRDF — scatter it equally in every direction — is an
+// assumption laid on top of the measurement.
+//
+// It is wrong, and in a known direction. Matte paint on plywood
+// *retroreflects*: seen from the direction the light comes from it is
+// brighter than the cosine law predicts, and at grazing angles brighter
+// still. The mechanism is not subtle — a rough surface is a landscape of
+// small facets that shadow and mask each other, and when you look along the
+// illumination direction you see only the lit faces and none of the shadows.
+//
+// Oren and Nayar modelled it in 1994, in "Generalization of Lambert's
+// Reflectance Model", by treating the surface as a distribution of Lambertian
+// V-cavities with a roughness parameter and working out the masking. At zero
+// roughness it reduces exactly to Lambert; as roughness rises the surface
+// flattens out, loses the limb darkening a Lambertian sphere has, and gains
+// the retroreflective peak. It is the model that makes a photograph of the
+// Moon look like the Moon.
+//
+// This project does not implement it. `lambert.hpp` scatters equally and
+// says so.
+//
+// ── Why that is a claim rather than a shrug ──────────────────────────────
+//
+// The claim is that the error is smaller than the uncertainty in the
+// comparison this project is aiming at, and it is a claim precisely because
+// the correction is largest exactly where the interesting things are.
+//
+// Oren-Nayar departs most from Lambert at grazing angles and in corners,
+// which is where the colour bleeding is, which is the thing the Cornell box
+// is famous for and the thing v1.0 is measuring. If the comparison comes out
+// wrong by a few per cent in the corners, this is the first place to look,
+// and it will be much easier to look here having said so in advance.
+//
+// The claim is checkable and it is not checked yet. Item 0115 in v1.0 is
+// where every place the model was let off gets stated against a number, and
+// this is the first entry on that list.
+
 // ── The light ────────────────────────────────────────────────────────────
 //
 // MEASURED, and the thinnest part of the data set by a long way.

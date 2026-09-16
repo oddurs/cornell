@@ -97,8 +97,13 @@
 // It is deliberately absent. The claim is that Cornell's painted walls are
 // close enough to Lambertian that the error sits below their measurement,
 // and that is a claim to be *checked in v1.0 against the photograph*, not
-// asserted here. Item 0061 is the admission; if the comparison fails, this
-// file is the first suspect.
+// asserted here.
+//
+// `cornell.hpp` carries the admission in full, because it is the box's paint
+// that is being assumed about, and because Cornell made the assumption first:
+// their data page says "Surfaces are assumed to be Lambertian" before giving
+// a single number. If the v1.0 comparison fails in the corners, this file is
+// the first suspect and that is written down in advance.
 
 #pragma once
 
