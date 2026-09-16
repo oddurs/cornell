@@ -121,7 +121,9 @@ public:
           sums_(std::size_t(width) * std::size_t(height) * film_bins, 0.0),
           counts_(std::size_t(width) * std::size_t(height) * film_bins, 0),
           tristimulus_(std::size_t(width) * std::size_t(height)),
-          paths_(std::size_t(width) * std::size_t(height), 0) {}
+          paths_(std::size_t(width) * std::size_t(height), 0),
+          brightest_(std::size_t(width) * std::size_t(height), 0.0),
+          brightest_sample_(std::size_t(width) * std::size_t(height), 0) {}
 
     int width()  const { return width_;  }
     int height() const { return height_; }
@@ -176,8 +178,35 @@ public:
         // straight to tristimulus and why this file's memory arithmetic in
         // v0.1 concluded they were right to.
         const std::size_t p = std::size_t(y) * std::size_t(width_) + std::size_t(x);
-        tristimulus_[p] += cie::xyz_estimate(lambdas, value);
+        const Xyz estimate = cie::xyz_estimate(lambdas, value);
+        tristimulus_[p] += estimate;
         paths_[p] += 1;
+
+        // ── The brightest one, and which one it was ──────────────────────
+        //
+        // A film is an accumulator and this is the one thing it keeps that is
+        // not accumulated, so it needs a reason. The reason is that a mean
+        // cannot tell you what made it: a pixel whose value is dominated by a
+        // single enormous sample and one whose samples all agree look
+        // identical here, and only the first is a firefly.
+        //
+        // Two doubles and an integer per pixel, written on a comparison that
+        // is already loading the value. Item 0070 is what it is for, and
+        // `./cornell render --outliers` prints the addresses in the spelling
+        // `./cornell replay` takes.
+        if (estimate.y > brightest_[p]) {
+            brightest_[p] = estimate.y;
+            brightest_sample_[p] = sample;
+        }
+    }
+
+    // The largest single-sample luminance a pixel saw, and the sample index
+    // that produced it. Zero and zero for a pixel nothing reached.
+    double brightest(int x, int y) const {
+        return brightest_[std::size_t(y) * std::size_t(width_) + std::size_t(x)];
+    }
+    std::uint64_t brightest_sample(int x, int y) const {
+        return brightest_sample_[std::size_t(y) * std::size_t(width_) + std::size_t(x)];
     }
 
     // The estimate, written as the ratio rather than as a number somebody
@@ -246,6 +275,8 @@ private:
     std::vector<std::uint32_t> counts_;
     std::vector<Xyz> tristimulus_;
     std::vector<std::uint32_t> paths_;
+    std::vector<double> brightest_;
+    std::vector<std::uint64_t> brightest_sample_;
 };
 
 } // namespace render
