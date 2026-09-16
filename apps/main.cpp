@@ -64,6 +64,7 @@ void print_witnesses() {
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
+    std::printf("  --threads N               default is what the machine reports\n");
     std::printf("  The height is derived from the width and the shape of the film.\n");
 }
 
@@ -114,6 +115,7 @@ int main(int argc, char* argv[]) {
             else if (arg == "--tonemap" && i + 1 < argc) settings.curve = app::tone_curve_named(argv[++i]);
             else if (arg == "--lamp" && i + 1 < argc) settings.tungsten = std::string_view{argv[++i]} == "a";
             else if (arg == "--no-adapt") settings.adapt = false;
+            else if (arg == "--threads" && i + 1 < argc) settings.threads = integer_or(argv[++i], 0);
             else settings.width = integer_or(arg, settings.width);
         }
         return app::render(settings);

@@ -40,8 +40,33 @@
 // not-modelled, and the honest order is to measure this first.
 //
 // Each sample's stream is addressed by `(pixel index, sample index)`, so the
-// image does not depend on the order the pixels are visited, and will not
-// depend on how many threads visit them when v0.4 adds some.
+// image does not depend on the order the pixels are visited — and v0.4 cashes
+// that in below: it does not depend on how many threads visit them either.
+//
+// ── Tiles, and why not scanlines ─────────────────────────────────────────
+//
+// The film is divided into squares and threads take the next unclaimed one.
+// Squares rather than rows for two reasons. A square's rays are more alike
+// than a row's, so the paths through the scene stay near each other and the
+// same parts of the BVH stay in cache. And a row is as wide as the image, so
+// the last row of an expensive region is one thread's problem and everybody
+// else waits; a square is small enough that the work evens out.
+//
+// ── No shared mutable state except the film ──────────────────────────────
+//
+// Each tile computes its own rays from its own samplers and writes only to
+// the pixels inside it. Tiles do not overlap, so no two threads ever touch
+// the same accumulator, and the film needs no lock — not because the writes
+// are atomic but because they never collide.
+//
+// The one thing genuinely shared is the counter that hands out tiles, and it
+// is an atomic. Which tile a thread gets is a race, deliberately: the whole
+// arrangement works precisely because the answer does not depend on who got
+// what.
+//
+// That is a claim, so it is measured rather than asserted, and it is item
+// 0035's last criterion coming due — the sampler was built in v0.2 to make
+// this true and there were no threads yet to prove it with.
 //
 // ── What the image is of ─────────────────────────────────────────────────
 //
@@ -126,8 +151,11 @@
 
 #pragma once
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <thread>
 #include <vector>
 
 #include <render/camera.hpp>
@@ -155,7 +183,19 @@ struct RenderSettings {
     ToneCurve curve = ToneCurve::clip;   // see tonemap.hpp: a choice, not physics
     bool tungsten = false;               // light it with illuminant A instead
     bool adapt = true;                   // see bradford.hpp: also not physics
+    int threads = 0;                     // 0 means ask the machine
 };
+
+// Sixteen pixels square. Small enough that a slow region does not become one
+// thread's problem, large enough that handing out a tile costs nothing next
+// to rendering it.
+inline constexpr int tile_size = 16;
+
+inline int worker_count(const RenderSettings& settings) {
+    return settings.threads > 0
+        ? settings.threads
+        : int(std::max(1u, std::thread::hardware_concurrency()));
+}
 
 // The camera, MEASURED, from the same page as the box.
 //
@@ -235,22 +275,83 @@ inline render::Matrix3 lamp_adaptation() {
 // walls does.
 inline constexpr double reference_luminance = 0.2;
 
-inline int render(const RenderSettings& settings) {
+// The loop, separated from everything that writes a file, so that the
+// threading check in `verify.hpp` can run it twice and compare rather than
+// rendering to disk and diffing images.
+inline render::Film expose(const RenderSettings& settings,
+                           const render::Scene& scene,
+                           const render::Camera& camera,
+                           int height) {
     using namespace render;
 
-    const Scene scene = cornell::box();
+    Film film(settings.width, height);
 
     // Chromatic adaptation, which is a model of an eye rather than of light.
     // With it off, a tungsten-lit render is orange — and that is the correct
     // radiometric answer, which is why it is switchable rather than baked in.
     // See bradford.hpp.
-    const double normalisation = lamp_normalisation();
+    const int across = (settings.width + tile_size - 1) / tile_size;
+    const int down   = (height + tile_size - 1) / tile_size;
+    const int tiles  = across * down;
 
-    // The box's lamp is tungsten, so without adaptation the render is orange —
-    // correctly, and for the reason bradford.hpp gives. Cornell's own
-    // photographs were taken through narrow-band filters and calibrated, so
-    // the comparison in v1.0 happens before this step, not after it.
-    const Matrix3 adaptation = settings.adapt ? lamp_adaptation() : identity3();
+    const int workers = worker_count(settings);
+
+    // One tile of the film. Everything it touches is its own except the
+    // pixels it writes, and no other tile writes those.
+    const auto render_tile = [&](int index) {
+        const int x0 = (index % across) * tile_size;
+        const int y0 = (index / across) * tile_size;
+        const int x1 = std::min(x0 + tile_size, settings.width);
+        const int y1 = std::min(y0 + tile_size, height);
+
+        for (int y = y0; y < y1; ++y) {
+            for (int x = x0; x < x1; ++x) {
+                const std::uint64_t pixel =
+                    std::uint64_t(y) * std::uint64_t(settings.width) + std::uint64_t(x);
+
+                for (int s = 0; s < settings.spp; ++s) {
+                    // Addressed, not dispensed. This is the line that makes
+                    // the thread count irrelevant to the answer.
+                    Sampler sampler{pixel, std::uint64_t(s)};
+
+                    const auto [jitter_u, jitter_v] = sampler.next2();
+                    const double u = (double(x) + jitter_u) / double(settings.width);
+                    const double v = (double(y) + jitter_v) / double(height);
+
+                    const Wavelengths lambdas = Wavelengths::sample(sampler.next());
+
+                    const Radiance carried =
+                        radiance(scene, camera.ray_through(u, v), lambdas, sampler);
+
+                    film.add_sample(x, y, lambdas, carried);
+                }
+            }
+        }
+    };
+
+    std::atomic<int> next_tile{0};
+    {
+        // jthread, so the scope end joins them and an exception does not
+        // leave a thread running. There is nothing else in this project that
+        // needs a thread, so there is nothing else here.
+        std::vector<std::jthread> pool;
+        pool.reserve(std::size_t(workers));
+        for (int t = 0; t < workers; ++t) {
+            pool.emplace_back([&] {
+                for (int i = next_tile.fetch_add(1); i < tiles;
+                     i = next_tile.fetch_add(1))
+                    render_tile(i);
+            });
+        }
+    }
+
+    return film;
+}
+
+inline int render(const RenderSettings& settings) {
+    using namespace render;
+
+    const Scene scene = cornell::box();
 
     // Cornell's camera, at Cornell's position, pointed the way Cornell
     // pointed it.
@@ -260,34 +361,17 @@ inline int render(const RenderSettings& settings) {
                                           film_width, film_height, film_distance);
 
     const int height = height_for(settings.width);
-    Film film(settings.width, height);
+
+    const double normalisation = lamp_normalisation();
+
+    // The box's lamp is tungsten, so without adaptation the render is orange —
+    // correctly, and for the reason bradford.hpp gives. Cornell's own
+    // photographs were taken through narrow-band filters and calibrated, so
+    // the comparison in v1.0 happens before this step, not after it.
+    const Matrix3 adaptation = settings.adapt ? lamp_adaptation() : identity3();
 
     const auto started = std::chrono::steady_clock::now();
-
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < settings.width; ++x) {
-            const std::uint64_t pixel =
-                std::uint64_t(y) * std::uint64_t(settings.width) + std::uint64_t(x);
-
-            for (int s = 0; s < settings.spp; ++s) {
-                // Addressed, not dispensed. Nothing about this depends on
-                // the order the loops above happen to run in.
-                Sampler sampler{pixel, std::uint64_t(s)};
-
-                const auto [jitter_u, jitter_v] = sampler.next2();
-                const double u = (double(x) + jitter_u) / double(settings.width);
-                const double v = (double(y) + jitter_v) / double(height);
-
-                const Wavelengths lambdas = Wavelengths::sample(sampler.next());
-
-                const Radiance carried =
-                    radiance(scene, camera.ray_through(u, v), lambdas, sampler);
-
-                film.add_sample(x, y, lambdas, carried);
-            }
-        }
-    }
-
+    const Film film = expose(settings, scene, camera, height);
     const double seconds =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 
@@ -350,8 +434,10 @@ inline int render(const RenderSettings& settings) {
     }
 
     const double paths = double(settings.width) * double(height) * double(settings.spp);
-    std::printf("%d x %d, %d samples per pixel, %.2f million paths, %.1f s\n",
-                settings.width, height, settings.spp, paths / 1e6, seconds);
+    std::printf("%d x %d, %d samples per pixel, %.2f million paths, %.1f s"
+                " on %d thread%s\n",
+                settings.width, height, settings.spp, paths / 1e6, seconds,
+                worker_count(settings), worker_count(settings) == 1 ? "" : "s");
     std::printf("  %.2f million paths per second\n", paths / 1e6 / seconds);
     std::printf("luminance Y: mean %.4f, brightest %.4f\n",
                 total / (double(settings.width) * double(height)), brightest);
