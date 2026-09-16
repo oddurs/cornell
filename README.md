@@ -192,19 +192,45 @@ $ ./cornell
 cornell — a box in a lab, modelled from first principles, for no reason.
 
   render    v0.1  built  the image itself
-  spectrum  v0.3         any spectrum in the project, with its chromaticity
-  furnace   v0.5         energy conservation, as a pass/fail you can see
+  spec      v0.4  built  the box as a specification, everything derived
+  spectrum  v0.3  built  any spectrum in the project, with its chromaticity
+  furnace   v0.5  built  energy conservation, as a pass/fail you can see
   chi2      v0.5         that sample() and pdf() describe the same distribution
   converge  v0.5         that RMSE falls as N^-1/2, or the estimator is biased
-  verify    v0.5         every physical claim the project makes, in one run
+  verify    v0.4  built  every physical claim the project makes, in one run
   swatch    v0.6         the metals, rendered from nothing but citations
 ```
+
+### What the furnace says today
+
+There is one BSDF in the project, and it vanishes.
+
+```
+$ ./cornell furnace
+
+      rho    pixels on the sphere    worst |L - 1|      expected     verdict
+     1.00                   16824    0.000000e+00    0.000000e+00    vanished
+     0.50                   16824    5.000000e-01    5.000000e-01    visible, by exactly 1 - rho
+     0.25                   16824    7.500000e-01    7.500000e-01    visible, by exactly 1 - rho
+     0.00                   16824    1.000000e+00    1.000000e+00    visible, by exactly 1 - rho
+```
+
+A residual of **exactly zero**, not a small number: every path in the scene
+returns the same double the walls emit, and `furnace.ppm` at ρ = 1 contains
+one distinct byte value. The sphere is not dimmed, it is absent.
+
+That is an easier result than it sounds and the ease is the point. The whole
+test on a Lambertian is `(ρ/π)·π == ρ`, and the estimator divides the same
+cosine by itself, so the arithmetic cancels rather than nearly cancelling.
+Nothing here is evidence that the furnace is a good instrument — it is the
+calibration that has to pass before v0.7 points it at a model whose answer
+nobody knows.
 
 ---
 
 ## The roadmap
 
-135 items across 16 milestones, as Markdown files under `cairn/`, rendered
+157 items across 16 milestones, as Markdown files under `cairn/`, rendered
 into [`ROADMAP.md`](ROADMAP.md). `cairn board` prints where everything stands
 and `cairn next` prints what is ready to work on.
 
