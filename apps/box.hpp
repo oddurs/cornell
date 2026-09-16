@@ -91,7 +91,7 @@ inline void add_quad(render::Scene& scene,
     using namespace render;
     Triangle first{a, b, c};
     Triangle second{a, c, d};
-    if (dot(first.normal(), should_face) < 0.0) {
+    if (dot(first.geometric_normal(), should_face) < 0.0) {
         first = Triangle{a, c, b};
         second = Triangle{a, d, c};
     }
