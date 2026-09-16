@@ -481,6 +481,33 @@ inline constexpr double light_radiance = 1.6;
 
 namespace detail {
 
+// ── Why there is no mesh ─────────────────────────────────────────────────
+//
+// An indexed mesh — positions stored once, faces naming three of them — is
+// how every renderer holds triangles, and it buys two things. One is memory,
+// which is not a consideration for a room made of 38 triangles. The other is
+// the one that matters: two faces that share an index share their edge to the
+// last bit, so the seam between them is watertight by construction rather
+// than by the numbers having been typed identically twice.
+//
+// The second argument does not apply here either, and that is worth measuring
+// rather than asserting. The box emits 114 vertices, which fall on 32
+// distinct positions — and the count is 32 whether "distinct" means equal to
+// within a nanometre or equal in every bit. Every shared corner in this file
+// is already exact.
+//
+// It is exact for an unglamorous reason. A vertex is written `at(130, 165,
+// 65, scale)`, and wherever that corner appears again it is written the same
+// way, so the same arithmetic runs on the same literals and lands on the same
+// double. Indexing would make that structural rather than textual; it would
+// not make it any more true. What it would cost is the thing this file is
+// for: `at(290, 165, 114)` is a line a reader can check against Cornell's
+// published table, and `faces.push_back({4, 7, 6})` is not.
+//
+// So the geometry is written out, and an index arrives with the first model
+// this project cannot transcribe by hand — which would need a file format,
+// and house rule 4 has something to say about that.
+
 // Two triangles, wound so the normal comes out on the side asked for.
 inline void add_quad(Scene& scene, const Vec3& a, const Vec3& b, const Vec3& c,
                      const Vec3& d, const Vec3& faces, const Bsdf& bsdf,

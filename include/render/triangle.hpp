@@ -82,6 +82,13 @@
 // everywhere in it, and the accessors exist so that the day something curved
 // arrives the distinction is already made rather than being retrofitted.
 //
+// Which means, plainly: nothing in this repository sets `na`, `nb` or `nc`,
+// and `shading_normal` returns the geometric normal on every ray it has ever
+// been asked about. The branch is kept rather than deleted because the
+// distinction is the thing being explained, and it is worth a dozen lines to
+// have it explained where it applies; the day a curved surface arrives, this
+// paragraph is what has to change and not the design.
+//
 // ── What is not modelled ─────────────────────────────────────────────────
 //
 // Texture coordinates. The barycentrics are computed, used for the shading
