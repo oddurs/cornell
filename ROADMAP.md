@@ -92,13 +92,12 @@ A spectrum is a function of wavelength and a monitor has three primaries, and th
 
 ## v0.4 — The box, as measured
 
-`··········` 0% · 0 of 11 done
+`#·········` 9% · 1 of 11 done
 
 The scene arrives, and it is not a scene. It is a plywood box built at Cornell, painted, lit, and photographed with a calibrated radiometer, published with the spectral reflectance of every wall so that a renderer has something to be right about.
 
 ### backlog
 
-- [ ] [`0051`](https://github.com/oddurs/cornell/blob/main/cairn/items/0051-find-out-exactly-what-cornell-published-and-what-units-it-is-in.md) Find out exactly what Cornell published, and what units it is in <sup>spike · p0 · scene · thesis</sup>
 - [ ] [`0052`](https://github.com/oddurs/cornell/blob/main/cairn/items/0052-cornell-hpp-the-box-as-a-constexpr-specification.md) cornell.hpp: the box as a constexpr specification <sup>optics · p0 · scene · thesis</sup>
 - [ ] [`0053`](https://github.com/oddurs/cornell/blob/main/cairn/items/0053-the-measured-spectral-reflectances-of-the-walls.md) The measured spectral reflectances of the walls <sup>optics · p0 · scene · thesis</sup>
 - [ ] [`0054`](https://github.com/oddurs/cornell/blob/main/cairn/items/0054-the-light-s-emission-spectrum-and-its-measured-geometry.md) The light's emission spectrum, and its measured geometry <sup>optics · p0 · scene</sup>
@@ -109,6 +108,10 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 - [ ] [`0059`](https://github.com/oddurs/cornell/blob/main/cairn/items/0059-tile-based-threading-with-std-jthread-and-nothing-else.md) Tile-based threading with std::jthread, and nothing else <sup>optics · p2 · transport</sup>
 - [ ] [`0060`](https://github.com/oddurs/cornell/blob/main/cairn/items/0060-prose-cornell-hpp-s-opening-in-the-lab-notebook-voice.md) Prose: cornell.hpp's opening, in the lab-notebook voice <sup>prose · p2 · prose</sup>
 - [ ] [`0061`](https://github.com/oddurs/cornell/blob/main/cairn/items/0061-admit-that-the-plywood-is-not-lambertian.md) Admit that the plywood is not Lambertian <sup>prose · p2 · prose · admission</sup>
+
+### done
+
+- [x] [`0051`](https://github.com/oddurs/cornell/blob/main/cairn/items/0051-find-out-exactly-what-cornell-published-and-what-units-it-is-in.md) Find out exactly what Cornell published, and what units it is in <sup>spike · p0 · scene · thesis</sup>
 
 ## v0.5 — It has to be right
 
