@@ -49,16 +49,44 @@
 // its merits rather than by fiat. That is the correct outcome and it is one
 // comparison later.
 //
+// ── Two normals, and the difference is not cosmetic ──────────────────────
+//
+// A triangle has a *geometric* normal — the cross product of two of its
+// edges, the direction the flat plane actually faces — and it may also carry
+// three vertex normals, interpolated across the face to give a *shading*
+// normal that varies smoothly. The second is how a coarse mesh is made to
+// look curved, and it is a lie: the surface is still flat and the normal
+// claims it is not.
+//
+// Conflating them is a classic and expensive mistake, so this file keeps them
+// apart and says which is for what:
+//
+//      geometric_normal()   the plane's own direction. Used by
+//                           `waechter.hpp` to decide which side to offset a
+//                           spawned ray onto, and by anything that asks
+//                           which side of the surface a direction is on.
+//                           Always. A ray offset along an interpolated
+//                           normal can be pushed to the wrong side of a
+//                           surface it is on, which is the bug the entire
+//                           self-intersection machinery exists to prevent.
+//
+//      shading_normal()     the interpolated one, where there is one. Used
+//                           for the BSDF and the cosine, because that is
+//                           what makes the lie work.
+//
+// Where they disagree — near a silhouette on a coarse mesh — the shading
+// normal can point away from a direction the geometric normal accepts, or the
+// reverse. Light that should scatter is discarded and light that should not
+// is kept, and the usual symptom is a dark rim on curved objects that nobody
+// can account for. This project's box is flat panels, so the two agree
+// everywhere in it, and the accessors exist so that the day something curved
+// arrives the distinction is already made rather than being retrofitted.
+//
 // ── What is not modelled ─────────────────────────────────────────────────
 //
-// Vertex normals, and therefore smooth shading. This triangle is flat and its
-// normal is the geometric one; a mesh approximating a curved surface will
-// look faceted. The Cornell box is made of flat panels, so nothing in this
-// project needs interpolated normals until something curved arrives that is
-// not a sphere.
-//
-// Texture coordinates. The barycentrics are computed and discarded. They are
-// what a texture lookup would use, and there are no textures.
+// Texture coordinates. The barycentrics are computed, used for the shading
+// normal, and otherwise discarded. They are what a texture lookup would use,
+// and there are no textures.
 //
 // Watertightness. Two triangles sharing an edge can, for a ray passing
 // exactly through that edge, both report a miss — the arithmetic for the two
@@ -81,6 +109,7 @@
 #pragma once
 
 #include <optional>
+#include <utility>
 #include <render/ray.hpp>
 #include <render/vec.hpp>
 
@@ -91,16 +120,50 @@ struct Triangle {
     Vec3 b{};
     Vec3 c{};
 
+    // Optional vertex normals. All three zero means flat, which is what a
+    // default-constructed `Unit` gives and what the Cornell box wants.
+    Unit na{};
+    Unit nb{};
+    Unit nc{};
+
     // Counter-clockwise seen from the front, which is the side the normal
     // points out of. Stated once here: everything that cares — one-sided
-    // emission, and back-face orientation in the integrator — reads it from
-    // `normal()` rather than deciding for itself.
-    Unit normal() const { return normalize(cross(b - a, c - a)); }
+    // emission, the offset in `waechter.hpp`, back-face orientation in the
+    // integrator — reads it from here rather than deciding for itself.
+    Unit geometric_normal() const { return normalize(cross(b - a, c - a)); }
 
-    // The same value for every point on a flat triangle. The argument exists
-    // so that this has the shape every other surface's normal query has, and
-    // so the scene can ask without knowing what it is holding.
-    Unit normal_at(const Vec3&) const { return normal(); }
+    bool smooth() const {
+        return length_squared(na) > 0.0 || length_squared(nb) > 0.0 || length_squared(nc) > 0.0;
+    }
+
+    // The interpolated normal at a point on the face, or the geometric one if
+    // this triangle has no vertex normals. See the header for which consumer
+    // wants which.
+    Unit shading_normal(const Vec3& p) const {
+        if (!smooth()) return geometric_normal();
+
+        const auto [u, v] = barycentric(p);
+        const Vec3 blended = na.vec() * (1.0 - u - v) + nb.vec() * u + nc.vec() * v;
+        return length_squared(blended) > 0.0 ? normalize(blended) : geometric_normal();
+    }
+
+    // Where a point on the plane sits in the triangle's own coordinates.
+    // Recovered from the point rather than returned by `intersect`, so that
+    // the shape interface every primitive shares stays one number wide.
+    std::pair<double, double> barycentric(const Vec3& p) const {
+        const Vec3 e1 = b - a, e2 = c - a, to_p = p - a;
+        const double d11 = dot(e1, e1), d12 = dot(e1, e2), d22 = dot(e2, e2);
+        const double dp1 = dot(to_p, e1), dp2 = dot(to_p, e2);
+        const double denominator = d11 * d22 - d12 * d12;
+        if (denominator == 0.0) return {0.0, 0.0};   // degenerate
+        return {(d22 * dp1 - d12 * dp2) / denominator,
+                (d11 * dp2 - d12 * dp1) / denominator};
+    }
+
+    // What the scene asks for when it does not know what it is holding.
+    // Shading, because that is what the BSDF wants; anything that needs the
+    // plane's own direction asks for it by name.
+    Unit normal_at(const Vec3& p) const { return shading_normal(p); }
 
     std::optional<double> intersect(const Ray& ray) const {
         const Vec3 e1 = b - a;
