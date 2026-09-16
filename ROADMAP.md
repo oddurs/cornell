@@ -135,22 +135,25 @@ The instruments of proof, built before the physics they will judge, because a ch
 
 ## v0.6 — You never type a colour
 
-`··········` 0% · 0 of 10 done
+`##········` 20% · 2 of 10 done
 
 The thesis.
 
 ### backlog
 
-- [ ] [`0072`](https://github.com/oddurs/cornell/blob/main/cairn/items/0072-fresnel-hpp-the-exact-equations-both-polarisations.md) fresnel.hpp: the exact equations, both polarisations <sup>optics · p0 · bsdf · thesis</sup>
 - [ ] [`0073`](https://github.com/oddurs/cornell/blob/main/cairn/items/0073-conductor-fresnel-with-a-complex-index-of-refraction.md) Conductor Fresnel with a complex index of refraction <sup>optics · p0 · bsdf · thesis</sup>
 - [ ] [`0074`](https://github.com/oddurs/cornell/blob/main/cairn/items/0074-johnson-and-christy-1972-the-measured-tables.md) Johnson and Christy, 1972: the measured tables <sup>optics · p0 · bsdf · thesis</sup>
 - [ ] [`0075`](https://github.com/oddurs/cornell/blob/main/cairn/items/0075-aluminium-from-a-different-source-cited-differently.md) Aluminium, from a different source, cited differently <sup>optics · p2 · bsdf</sup>
 - [ ] [`0076`](https://github.com/oddurs/cornell/blob/main/cairn/items/0076-schlick-hpp-the-1994-fit-in-the-file-next-door.md) schlick.hpp: the 1994 fit, in the file next door <sup>optics · p2 · bsdf</sup>
-- [ ] [`0077`](https://github.com/oddurs/cornell/blob/main/cairn/items/0077-verify-brewster-s-angle-falls-out-at-the-right-degree.md) Verify: Brewster's angle falls out at the right degree <sup>verify · p0 · verification · derivation</sup>
 - [ ] [`0078`](https://github.com/oddurs/cornell/blob/main/cairn/items/0078-verify-gold-s-chromaticity-matches-published-measurement.md) Verify: gold's chromaticity matches published measurement <sup>verify · p0 · verification · thesis</sup>
 - [ ] [`0079`](https://github.com/oddurs/cornell/blob/main/cairn/items/0079-perfect-specular-reflection-and-the-delta-pdf-convention.md) Perfect specular reflection, and the delta pdf convention <sup>optics · p2 · bsdf</sup>
 - [ ] [`0080`](https://github.com/oddurs/cornell/blob/main/cairn/items/0080-apps-swatch-the-metals-from-their-tables-alone.md) apps/swatch: the metals, from their tables alone <sup>instrument · p2 · instrument · thesis</sup>
 - [ ] [`0081`](https://github.com/oddurs/cornell/blob/main/cairn/items/0081-admit-that-averaging-the-two-polarisations-is-a-simplification.md) Admit that averaging the two polarisations is a simplification <sup>prose · p2 · prose · admission</sup>
+
+### done
+
+- [x] [`0072`](https://github.com/oddurs/cornell/blob/main/cairn/items/0072-fresnel-hpp-the-exact-equations-both-polarisations.md) fresnel.hpp: the exact equations, both polarisations <sup>optics · p0 · bsdf · thesis</sup>
+- [x] [`0077`](https://github.com/oddurs/cornell/blob/main/cairn/items/0077-verify-brewster-s-angle-falls-out-at-the-right-degree.md) Verify: Brewster's angle falls out at the right degree <sup>verify · p0 · verification · derivation</sup>
 
 ## v0.7 — Roughness
 

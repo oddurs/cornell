@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <render/cornell.hpp>
+#include <render/fresnel.hpp>
 #include <render/sampler.hpp>
 #include <render/scene.hpp>
 #include <render/si.hpp>
@@ -1009,6 +1010,199 @@ inline int verify() {
     // notices until CI does.
     const double seconds =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+
+    // ── Fresnel, and the things that fall out of it ──────────────────────
+    //
+    // Items 0072 and 0077. `fresnel.hpp` cannot pin its own constants with a
+    // `static_assert` — an arctangent is not `constexpr` in libc++ and is in
+    // libstdc++, so an assert there would compile on one of this project's
+    // two compilers — so its claims are here, where they can be stronger than
+    // an assert anyway.
+    //
+    // The important one is Brewster's angle. The file *derives* the formula
+    // `tan(theta_B) = eta_t / eta_i` from the equations above it, and
+    // evaluating that formula and comparing it with itself would check
+    // nothing. So the angle is found by searching the reflectance curve for
+    // the minimum of the parallel polarisation, which is a different
+    // question, and the formula is what it is compared against.
+    {
+        std::printf("\nFresnel, and the three things nobody wrote.\n\n");
+
+        // Where `r_p` is smallest, found rather than computed. A ten
+        // thousandth of a degree, which is finer than the agreement being
+        // claimed and coarse enough to finish.
+        const auto smallest_parallel = [](const Index& eta_t) {
+            double best = 2.0, at = 0.0;
+            for (int i = 0; i <= 900'000; ++i) {
+                const double degrees = double(i) / 10'000.0;
+                const double parallel = fresnel(std::cos(degrees * si::pi / 180.0), eta_t).p;
+                if (parallel < best) { best = parallel; at = degrees; }
+            }
+            return std::pair{at, best};
+        };
+
+        for (const double index : {1.33, 1.5, 2.417}) {
+            const auto [found, value] = smallest_parallel(Index{index, 0.0});
+            const double derived = si::as::deg(brewster_angle(index_of_air, index));
+            const bool ok = std::fabs(found - derived) < 1e-3 && value < 1e-9;
+            all_agree = all_agree && ok;
+
+            char label[80];
+            std::snprintf(label, sizeof label,
+                          "Brewster at n = %.3f: searched %.4f, arctan %.4f",
+                          index, found, derived);
+            std::printf("  %-58s %s\n", label, ok ? "agree" : "DISAGREE");
+        }
+
+        std::printf("      water, window glass, diamond. The middle one is 56.31 degrees\n"
+                    "      and is why polarising sunglasses work on a wet road.\n\n");
+
+        // Past the critical angle, glass to air, the reflectance must be 1 —
+        // and it is 1 exactly, which is the reason `fresnel.hpp` squares the
+        // numerator and denominator separately instead of dividing first.
+        // Dividing first rounds twice and returns 1.0000000000000002 at 89
+        // degrees, which is a surface that reflects more light than reaches
+        // it.
+        {
+            const Index glass{1.5, 0.0};
+            const Index air{index_of_air, 0.0};
+            long compared = 0, exactly_one = 0, above_one = 0;
+            double worst = 0.0;
+            const double critical = si::as::deg(critical_angle(1.5, index_of_air));
+
+            for (int i = 0; i <= 90'000; ++i) {
+                const double degrees = double(i) / 1000.0;
+                if (degrees <= critical + 0.05) continue;
+                const Reflected r = fresnel(std::cos(degrees * si::pi / 180.0), glass, air);
+                ++compared;
+                if (r.s == 1.0 && r.p == 1.0) ++exactly_one;
+                if (r.s > 1.0 || r.p > 1.0) ++above_one;
+                worst = std::fmax(worst, std::fmax(std::fabs(r.s - 1.0),
+                                                   std::fabs(r.p - 1.0)));
+            }
+
+            const double ulp = std::nextafter(1.0, 2.0) - 1.0;
+            const bool ok = above_one == 0 && worst <= 2.0 * ulp;
+            all_agree = all_agree && ok;
+            std::printf("  %-58s %9ld angles   %s   %.0f%% exact, worst %.1f ulp\n",
+                        "past the critical angle, glass to air, R is 1",
+                        compared, ok ? "agree" : "DISAGREE",
+                        100.0 * double(exactly_one) / double(compared), worst / ulp);
+        }
+
+        // The general function against the closed form it collapses to at
+        // normal incidence, which is where a metal's reflectance is usually
+        // quoted from. Two routes to one number, which is the only kind of
+        // check a derivation can have.
+        {
+            double worst = 0.0;
+            const Index indices[] = {Index{1.33, 0.0}, Index{1.5, 0.0}, Index{2.417, 0.0},
+                                     Index{0.2, 3.0}, Index{1.1, 7.0}, Index{0.05, 4.2}};
+            for (const Index& eta : indices)
+                worst = std::fmax(worst,
+                                  std::fabs(fresnel(1.0, eta).unpolarised()
+                                            - normal_incidence(eta)));
+
+            const bool ok = worst < 1e-15;
+            all_agree = all_agree && ok;
+            std::printf("  %-58s %9zu indices  %s   worst %.1e\n",
+                        "at normal incidence the general form meets the closed one",
+                        std::size(indices), ok ? "agree" : "DISAGREE", worst);
+        }
+
+        // Energy. A reflectance above 1 is a surface that emits.
+        //
+        // Which is only what `|r|^2` means when the medium the light arrives
+        // *through* does not absorb. The quantity being squared is an
+        // amplitude ratio; turning it into a ratio of energy flux needs the
+        // real part of a Poynting vector, and those two agree exactly when
+        // the incident index is real and do not when it is complex. So the
+        // sweep below crosses every boundary in the direction light actually
+        // travels here — out of a transparent medium — and the reverse only
+        // for the transparent ones, where total internal reflection is the
+        // thing being checked.
+        //
+        // That distinction was found by CI rather than by thinking. The first
+        // version swept both directions for all six indices; it passed under
+        // clang, and under g++-14 a conductor-to-air case at 90 degrees came
+        // back a few ulp above 1. Both compilers were right. The check was
+        // asking a question that has no answer.
+        {
+            double worst = 0.0;
+            long compared = 0;
+            const Index transparent[] = {Index{1.33, 0.0}, Index{1.5, 0.0},
+                                         Index{2.417, 0.0}};
+            const Index absorbing[] = {Index{0.2, 3.0}, Index{1.1, 7.0},
+                                       Index{0.05, 4.2}};
+
+            for (int i = 0; i <= 90'000; ++i) {
+                const double cosine = std::cos(double(i) / 1000.0 * si::pi / 180.0);
+
+                for (const Index& eta : transparent) {
+                    const Reflected into = fresnel(cosine, eta);
+                    const Reflected out = fresnel(cosine, eta, Index{index_of_air, 0.0});
+                    worst = std::fmax(worst, std::fmax(into.s, into.p));
+                    worst = std::fmax(worst, std::fmax(out.s, out.p));
+                    compared += 2;
+                }
+                for (const Index& eta : absorbing) {
+                    const Reflected into = fresnel(cosine, eta);
+                    worst = std::fmax(worst, std::fmax(into.s, into.p));
+                    ++compared;
+                }
+            }
+
+            const bool ok = worst <= 1.0;
+            all_agree = all_agree && ok;
+            std::printf("  %-58s %9ld pairs    %s   largest %.17g\n",
+                        "no reflectance exceeds 1, arriving through anything clear",
+                        compared, ok ? "agree" : "DISAGREE", worst);
+        }
+
+        // Grazing incidence: everything becomes a mirror. Checked as a limit
+        // rather than at a point, because the claim is that it approaches 1
+        // and not that it reaches it.
+        {
+            bool rising = true;
+            double last_s = 0.0, last_p = 0.0, at_grazing = 0.0;
+            for (int i = 0; i <= 8999; ++i) {
+                const double degrees = 80.0 + double(i) / 900.0;
+                const Reflected r = fresnel(std::cos(degrees * si::pi / 180.0),
+                                            Index{1.5, 0.0});
+                rising = rising && r.s >= last_s && r.p >= last_p;
+                last_s = r.s;
+                last_p = r.p;
+                at_grazing = r.unpolarised();
+            }
+
+            const bool ok = rising && at_grazing > 0.999;
+            all_agree = all_agree && ok;
+            std::printf("  %-58s %9s        %s   R = %.5f\n",
+                        "from 80 to 90 degrees both polarisations rise to 1", "glass",
+                        ok ? "agree" : "DISAGREE", at_grazing);
+        }
+
+        // And the one the complex case gives for free: a conductor has no
+        // Brewster angle at all. It has a pseudo-Brewster angle, where `r_p`
+        // is least rather than zero, and reporting the depth of that minimum
+        // is the difference between the two phenomena.
+        {
+            const auto [at, value] = smallest_parallel(Index{0.2, 3.0});
+            const bool ok = value > 0.5;
+            all_agree = all_agree && ok;
+
+            char label[80];
+            std::snprintf(label, sizeof label,
+                          "a conductor's r_p bottoms at %.2f degrees, not zero", at);
+            std::printf("  %-58s %9s        %s   R = %.5f\n", label, "n=0.2 k=3",
+                        ok ? "agree" : "DISAGREE", value);
+        }
+
+        std::printf("\n  The last row is why the dielectric and the conductor are one\n"
+                    "  function here. Brewster's angle exists because `r_p` can reach\n"
+                    "  zero; with a complex index it cannot, and nothing had to be\n"
+                    "  written for that — the same equation stops having a root.\n");
+    }
 
     std::printf("\n%s\n", all_agree
         ? "Every claim above holds."
