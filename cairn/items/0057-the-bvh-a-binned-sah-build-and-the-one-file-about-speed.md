@@ -2,10 +2,11 @@
 id: 57
 title: 'The BVH: a binned SAH build, and the one file about speed'
 type: optics
-status: backlog
+status: done
 milestone: v0.4
+assignee: Oddur Sigurdsson
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-15
 priority: p0
 area: accel
 effort: l
@@ -37,6 +38,20 @@ trade is most costly and most deliberate.
 
 ## Acceptance criteria
 
-- [ ] Flat array of 32-byte nodes, `left = node + 1`, no pointer tree
-- [ ] Build cost and traversal speedup both measured and quoted
-- [ ] The file's opening admits what it is
+- [x] Flat array of 32-byte nodes, `left = node + 1`, no pointer tree — and
+      32 bytes means `float` bounds in a `double` renderer, rounded outward so
+      the float box always contains the double box
+- [x] Build cost and traversal speedup both measured and quoted — 1.59x on
+      the Cornell box, 59x at twenty thousand primitives, and 190 to 222 ns
+      per primitive to build
+- [x] The file's opening admits what it is
+
+Corrected: this item said a median split is "two to four times slower". It is
+about twenty per cent slower at scale and no slower at all on a small scene.
+The comparison earned its place anyway — the first run had the median split
+seventeen times *faster*, which was a bug in the heuristic's bounds
+arithmetic rather than a result.
+
+## 2026-09-15
+
+Measured against exhaustive intersection, which scene.hpp keeps for the purpose: 1.59x on the Cornell box's 38 triangles, 2.58x at 238, 10.60x at 2038 and 59.00x at 20038. Build is 190-222 ns per primitive, 4.5 ms for twenty thousand. The item's claim that a median split is two to four times slower is overstated - measured fairly it is about 20 per cent slower at scale and no slower on a small scene. That comparison found a real bug though: the first run had median beating the heuristic by seventeen times, which is a bug report rather than a tuning difference. Bounds::grow(const Bounds&) was growing by empty boxes, whose low is +inf and high is -inf, so one empty bin poisoned the running bounds for every later candidate, every split costed infinity, none was chosen, and nodes became leaves of arbitrary size - 757 nodes for twenty thousand primitives instead of 13485. It produced correct images throughout. It simply was not accelerating anything.

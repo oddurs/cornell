@@ -68,6 +68,7 @@
 #include <vector>
 
 #include <render/basis.hpp>
+#include <render/bvh.hpp>
 #include <render/bsdf.hpp>
 #include <render/cie.hpp>
 #include <render/illuminant.hpp>
@@ -172,11 +173,57 @@ public:
     // v0.4's BVH builds over them. The review was right at the time.
     const std::vector<Surface>& surfaces() const { return surfaces_; }
 
-    // The nearest surface along the ray, if any.
+    std::size_t node_count() const { return bvh_.nodes().size(); }
+
+    // Build the index. Call it once, after the last `add`.
     //
-    // Every surface, every time. See above: the BVH is v0.4's, and this loop
-    // is what will be used to prove it correct.
+    // Separate from `add` rather than incremental, because a BVH built as
+    // primitives arrive is a different and much worse tree than one built
+    // knowing all of them — the surface area heuristic needs the whole set to
+    // choose a split.
+    void finalise() {
+        std::vector<Bounds> item_bounds;
+        item_bounds.reserve(surfaces_.size());
+        for (const Surface& surface : surfaces_) {
+            Bounds b;
+            std::visit([&](const auto& shape) { grow_bounds(b, shape); }, surface.shape);
+            item_bounds.push_back(b);
+        }
+        bvh_.build(item_bounds);
+    }
+
+    // The nearest surface along the ray, if any — through the index.
     std::optional<Interaction> intersect(const Ray& ray) const {
+        // A tree of one node is a tree that decided not to be one: the
+        // heuristic found no split worth making, so traversing it costs a box
+        // test per ray and buys nothing. It does not arise for the Cornell
+        // box — that builds 25 nodes and runs 1.59x faster than exhaustive —
+        // and the guard stays for scenes small enough that it might.
+        if (bvh_.nodes().size() <= 1) return intersect_exhaustively(ray);
+
+        std::optional<Interaction> nearest;
+        Ray shortened = ray;
+
+        bvh_.traverse(ray, shortened, [&](std::uint32_t index) {
+            const Surface& surface = surfaces_[index];
+            const auto t = std::visit(
+                [&](const auto& shape) { return shape.intersect(shortened); }, surface.shape);
+            if (!t) return;
+
+            shortened.t_max = *t;
+            const Vec3 point = ray.at(*t);
+            const Unit normal = std::visit(
+                [&](const auto& shape) { return shape.normal_at(point); }, surface.shape);
+            nearest = Interaction{*t, point, normal, &surface};
+        });
+
+        return nearest;
+    }
+
+    // The same question, asked of every primitive. Kept because item 0058 is
+    // the claim that the index changes only the speed of the answer, and a
+    // claim like that needs something to be compared against.
+    std::optional<Interaction> intersect_exhaustively(const Ray& ray) const {
         std::optional<Interaction> nearest;
         Ray shortened = ray;
 
@@ -200,7 +247,18 @@ public:
     }
 
 private:
+    static void grow_bounds(Bounds& b, const Triangle& t) {
+        b.grow(t.a); b.grow(t.b); b.grow(t.c);
+    }
+
+    static void grow_bounds(Bounds& b, const Sphere& s) {
+        const Vec3 r{s.radius, s.radius, s.radius};
+        b.grow(s.centre - r);
+        b.grow(s.centre + r);
+    }
+
     std::vector<Surface> surfaces_;
+    Bvh bvh_;
 };
 
 // What a surface sends towards `wo`, which is nothing at all from the back.

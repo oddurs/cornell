@@ -467,6 +467,7 @@ inline Scene box() {
     detail::add_quad(scene, at(265,0,296), at(265,330,296), at(423,330,247), at(423,0,247),
                      Vec3{-0.3, 0, -0.95}, pale);
 
+    scene.finalise();
     return scene;
 }
 

@@ -96,6 +96,14 @@ constexpr Vec3 cross(const Vec3& a, const Vec3& b) {
 // asking whether a vector is shorter than some tolerance, does not need the
 // square root, and a square root that nobody needed is the cheapest thing in
 // a renderer to not do.
+// One component by index, for the few places that genuinely loop over axes —
+// a bounding box test, a split-plane choice. Written as a switch rather than
+// as pointer arithmetic into the struct, which is the usual trick and is
+// undefined behaviour dressed as cleverness.
+constexpr double component(const Vec3& v, int axis) {
+    return axis == 0 ? v.x : (axis == 1 ? v.y : v.z);
+}
+
 constexpr double length_squared(const Vec3& v) { return dot(v, v); }
 
 inline double length(const Vec3& v) { return std::sqrt(length_squared(v)); }
