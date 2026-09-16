@@ -28,6 +28,7 @@
 #include "converge.hpp"
 #include "furnace.hpp"
 #include "render.hpp"
+#include "replay.hpp"
 #include "spec.hpp"
 #include "verify.hpp"
 #include "spectrum.hpp"
@@ -42,6 +43,12 @@ struct Witness {
 };
 
 // In the order they arrive, which is the order a reader should meet them.
+// `replay` is not in this table, and that is deliberate rather than an
+// oversight. The table is the list of instruments — things that witness a
+// claim about the physics — and replay witnesses nothing. It is a debugger's
+// hand, reachable from the address an assertion prints, and it belongs in the
+// usage lines underneath rather than in the list a reader is meant to work
+// through in order.
 constexpr Witness witnesses[] = {
     {"render",   "v0.1", "the image itself",                                        true },
     {"spec",     "v0.4", "the box as a specification, everything derived",        true },
@@ -67,7 +74,8 @@ void print_witnesses() {
     std::printf("  ./cornell verify\n"
                 "  ./cornell furnace [--bsdf lambert] [--rho R] [--no-image]\n"
                 "  ./cornell chi2\n"
-                "  ./cornell converge\n");
+                "  ./cornell converge\n"
+                "  ./cornell replay x,y,sample [width]   one path, again, on one thread\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
@@ -110,6 +118,17 @@ int main(int argc, char* argv[]) {
     if (command == "chi2") return app::chi2();
 
     if (command == "converge") return app::converge();
+
+    if (command == "replay") {
+        if (argc < 3) {
+            std::fprintf(stderr, "cornell: replay wants an address, as x,y,sample.\n");
+            return 1;
+        }
+        app::RenderSettings settings;
+        for (int i = 3; i < argc; ++i)
+            settings.width = integer_or(std::string_view{argv[i]}, settings.width);
+        return app::replay(std::string_view{argv[2]}, settings);
+    }
 
     if (command == "furnace") {
         std::string_view model{"lambert"};
