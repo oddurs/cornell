@@ -185,6 +185,39 @@ than discovering it in a paper afterwards, is the single best thing this
 project can demonstrate. A check written after the thing it checks is a check
 written to pass.
 
+### They test what they test
+
+Which is the half of that argument it is easy to skip. An instrument is not
+rigour; it is one question, asked well. So each of the v0.5 checks comes with a
+deliberately wrong model written to be caught by it — and then **every liar is
+run through every check**, and the misses are printed beside the catches:
+
+```
+  deliberately wrong model            furnace     chi2  density  swapped
+  claims a flat density                     -   caught        -        -
+  claims one 2% too steep                   -   caught        -        -
+  a density that is half of one             -   caught   caught        -
+  weights only the incoming ray        caught        -        -   caught
+```
+
+Four models, each wrong in one way, none of them caught by every column. A
+density can be wrong by two percent and conserve energy *exactly* — it sails
+through the furnace, and it is invisible in a rendered image. A BRDF that
+weights only the incoming direction samples honestly and has a perfectly valid
+density. No column is redundant and no column is sufficient, and that is a
+measurement rather than a caution: it is printed by `./cornell verify`, so it
+cannot quietly stop being true.
+
+It also caught a claim this README used to make. The normalisation check was
+justified on the textbook argument that a chi-squared test compares *shapes*
+and is therefore blind to a density that is uniformly half of one. That is
+true of a chi-squared that renormalises its expectations to the observed
+total, and this one does not — it measures the half-density at χ²/dof 515. The
+check is still there, for two narrower reasons that survive: it is exact
+rather than statistical, and it needs no sampler, which is the only form
+available in v0.8 when a density is evaluated on directions another strategy
+produced.
+
 The program prints the list itself, so it can only claim what it can do:
 
 ```
