@@ -25,6 +25,7 @@
 #include <string_view>
 
 #include "chi2.hpp"
+#include "converge.hpp"
 #include "furnace.hpp"
 #include "render.hpp"
 #include "spec.hpp"
@@ -47,7 +48,7 @@ constexpr Witness witnesses[] = {
     {"spectrum", "v0.3", "any spectrum in the project, with its chromaticity",      true },
     {"furnace",  "v0.5", "energy conservation, as a pass/fail you can see",         true },
     {"chi2",     "v0.5", "that sample() and pdf() describe the same distribution",  true },
-    {"converge", "v0.5", "that RMSE falls as N^-1/2, or the estimator is biased",   false},
+    {"converge", "v0.5", "that RMSE falls as N^-1/2, or the estimator is biased",   true },
     {"verify",   "v0.4", "every physical claim the project makes, in one run",      true },
     {"swatch",   "v0.6", "the metals, rendered from nothing but citations",         false},
 };
@@ -65,7 +66,8 @@ void print_witnesses() {
     std::printf("  ./cornell spec\n");
     std::printf("  ./cornell verify\n"
                 "  ./cornell furnace [--bsdf lambert] [--rho R] [--no-image]\n"
-                "  ./cornell chi2\n");
+                "  ./cornell chi2\n"
+                "  ./cornell converge\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
@@ -106,6 +108,8 @@ int main(int argc, char* argv[]) {
     if (command == "verify") return app::verify();
 
     if (command == "chi2") return app::chi2();
+
+    if (command == "converge") return app::converge();
 
     if (command == "furnace") {
         std::string_view model{"lambert"};

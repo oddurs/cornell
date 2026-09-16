@@ -466,11 +466,18 @@ inline constexpr int default_max_depth = 256;
 // The ray is taken by value because the loop advances it; that is the
 // iteration, and handing it back to the caller modified would be a worse lie
 // than copying six doubles.
+// `roulette_start` is a parameter for the same reason `max_depth` is: it is a
+// knob an instrument has to turn. `converge.hpp`'s claim is that switching the
+// roulette off changes the noise and not the slope, and a claim about a switch
+// needs a switch. Passing a depth beyond `max_depth` turns it off — not as a
+// trick, but because "start the roulette after more bounces than there are" is
+// what off means.
 inline Radiance radiance(const Scene& scene,
                          Ray ray,
                          const Wavelengths& lambdas,
                          Sampler& sampler,
-                         int max_depth = default_max_depth) {
+                         int max_depth = default_max_depth,
+                         int roulette_start = roulette_start_depth) {
     Radiance carried{};
 
     // The product of every `f · cos / pdf` so far: the fraction of whatever
@@ -518,7 +525,7 @@ inline Radiance radiance(const Scene& scene,
         // Unbiased because the survivors are divided by the probability that
         // they survived. The division is written out for the same reason
         // every other division by a density in this project is.
-        if (depth >= roulette_start_depth) {
+        if (depth >= roulette_start) {
             const double survival = survival_probability(throughput);
             if (survival <= 0.0) break;
             if (sampler.next() >= survival) break;
