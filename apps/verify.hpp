@@ -27,6 +27,7 @@
 #include <render/scene.hpp>
 #include <render/si.hpp>
 
+#include "chi2.hpp"
 #include "render.hpp"
 
 namespace app {
@@ -374,6 +375,72 @@ inline int verify() {
                 std::printf("      %ld pixels differ at %d threads\n", differing, n);
             all_agree = all_agree && differing == 0;
         }
+    }
+
+    // ── Every sampler agrees with its own density ────────────────────────
+    //
+    // The short form of `./cornell chi2`, which prints the whole table and
+    // its calibration. What belongs on an inspection sheet is the verdict and
+    // the worst p-value, because a sheet with a hundred numbers on it is a
+    // sheet nobody reads — and because the criterion for the chi-squared item
+    // was that a failure be a build-breaking event, which requires it to be
+    // here rather than in an instrument somebody remembers to run.
+    {
+        using namespace chi2_detail;
+
+        std::printf("\nEvery sampler in the project agrees with the density it claims.\n\n");
+
+        const Bsdf grey{GreyLambert{Flat{0.5}}};
+        const Bsdf spectral{SpectralLambert{cie::d65}};
+        const Bsdf measured{MeasuredLambert{cornell::red}};
+
+        const std::pair<const char*, const Bsdf*> models[] = {
+            {"lambert, grey albedo",     &grey},
+            {"lambert, D65 as an albedo", &spectral},
+            {"lambert, Cornell's red",   &measured},
+        };
+
+        constexpr int draws = 1 << 18;
+
+        for (const auto& [name, bsdf] : models) {
+            double lowest = 1.0;
+            long impossible = 0;
+            int index = 0;
+
+            for (const double degrees : {0.0, 30.0, 60.0, 85.0}) {
+                const double theta = degrees * si::pi / 180.0;
+                const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+                const Result r = test(Dispatch{*bsdf}, wo, draws,
+                                      seed_base * std::uint64_t(++index));
+                lowest = std::fmin(lowest, r.p);
+                impossible += r.impossible;
+            }
+
+            const bool ok = lowest > 0.01 && impossible == 0;
+            all_agree = all_agree && ok;
+
+            char label[64];
+            std::snprintf(label, sizeof label, "%s, four angles", name);
+            std::printf("  %-46s %9d draws   %s   worst p = %.3f\n", label, draws * 4,
+                        ok ? "agree" : "DISAGREE", lowest);
+        }
+
+        // And the calibration, because a test that has never failed is a test
+        // nobody has checked. `chi2.hpp` explains what these two are.
+        const Vec3 up{0.0, 0.0, 1.0};
+        //
+        // Four times the draws the rows above use, and that is not padding:
+        // the two-percent liar is passed at 2^18 with p = 0.25 and caught at
+        // 2^20 with p = 6e-05. `./cornell chi2` prints the whole power curve.
+        constexpr int liar_draws = 1 << 20;
+        const double flat = test(ClaimsUniform{}, up, liar_draws, seed_liar).p;
+        const double nearly = test(ClaimsTwoPer{}, up, liar_draws, seed_liar).p;
+        const bool caught = flat <= 0.01 && nearly <= 0.01;
+        all_agree = all_agree && caught;
+
+        std::printf("  %-46s %9d draws   %s   p = %.1e, %.1e\n",
+                    "two deliberate liars, which must be caught", liar_draws * 2,
+                    caught ? "caught" : "ESCAPED", flat, nearly);
     }
 
     std::printf("\n%s\n", all_agree
