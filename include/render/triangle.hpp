@@ -64,9 +64,19 @@
 // exactly through that edge, both report a miss — the arithmetic for the two
 // is different, so `u + v ≤ 1` on one side and the corresponding test on the
 // other can disagree in the last bit. Woop, Benthin and Wald's 2013
-// formulation fixes it by construction. In a box made of two-triangle walls
-// that is a single pixel with a black speck in it; in a dense mesh it is a
-// scatter of them. It belongs with the deliberate choice in v0.4.
+// formulation fixes it by construction.
+//
+// v0.4 measured it rather than inheriting the worry, and kept this algorithm.
+// Item 0055 has the figures; the short version is that a ray aimed *exactly*
+// at a shared edge misses 26.6 % of the time, and that 3.4 million rays fired
+// at a sealed box — including 1.4 million on an adversarial grid of exact
+// fractions, against axis-aligned geometry — escaped zero times.
+//
+// The difference is `double`. Woop's leak rates are `float` leak rates, and
+// 52 bits of mantissa move this failure from occasionally visible to only
+// when aimed at on purpose. If this project ever moves to `float`, or gets
+// meshes dense enough that one pixel spans several shared edges, the answer
+// changes and the test is written down so it can be re-run.
 
 #pragma once
 
