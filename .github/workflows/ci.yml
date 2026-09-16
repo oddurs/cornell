@@ -93,6 +93,12 @@ jobs:
           # part of this instrument that touches a disk.
           ./cornell furnace --no-image
 
+          # And the chi-squared, which `verify` already runs in short form.
+          # Run whole anyway: an instrument's own printing path is code, and
+          # the short form does not exercise the pooling table or the power
+          # curve underneath it.
+          ./cornell chi2
+
           # `make strict` arrives with the Makefile item; until then there is
           # no target to call.
           if grep -q '^strict:' Makefile; then

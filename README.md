@@ -195,7 +195,7 @@ cornell — a box in a lab, modelled from first principles, for no reason.
   spec      v0.4  built  the box as a specification, everything derived
   spectrum  v0.3  built  any spectrum in the project, with its chromaticity
   furnace   v0.5  built  energy conservation, as a pass/fail you can see
-  chi2      v0.5         that sample() and pdf() describe the same distribution
+  chi2      v0.5  built  that sample() and pdf() describe the same distribution
   converge  v0.5         that RMSE falls as N^-1/2, or the estimator is biased
   verify    v0.4  built  every physical claim the project makes, in one run
   swatch    v0.6         the metals, rendered from nothing but citations
@@ -225,6 +225,51 @@ cosine by itself, so the arithmetic cancels rather than nearly cancelling.
 Nothing here is evidence that the furnace is a good instrument — it is the
 calibration that has to pass before v0.7 points it at a model whose answer
 nobody knows.
+
+### And what the chi-squared says
+
+A sampler and its density are two claims written in different code, and
+almost every BSDF bug in existence is a disagreement between them. A million
+draws, histogrammed over the sphere, against the density integrated over each
+cell by a quadrature that never calls the sampler:
+
+```
+$ ./cornell chi2
+
+  bsdf                  theta_o       chi2    dof    chi2/dof           p
+  lambert (grey)           0°      996.57   1023      0.9742      0.7172  pass
+  lambert (grey)          30°      999.47   1023      0.9770      0.6948  pass
+  lambert (grey)          60°     1045.63   1023      1.0221      0.3046  pass
+  lambert (grey)          85°     1005.59   1023      0.9830      0.6451  pass
+  lambert (grey)          30°*    1060.77   1023      1.0369      0.2005  pass
+  lambert (d65)           45°     1028.40   1023      1.0053      0.4467  pass
+  lambert (measured)      45°     1007.08   1023      0.9844      0.6327  pass
+```
+
+The interesting half is underneath. A test that has never failed is a test
+nobody has checked, so two deliberately dishonest samplers are run through the
+same grid — both draw exactly what Lambert draws, and then misreport the
+density:
+
+```
+      claimed density                    chi2/dof             p
+      cos^0  (flat)                         340.7     0.000e+00
+      cos^1.02  (2% too steep)                1.2     5.740e-05
+```
+
+The second one is the point. **χ²/dof of 1.2 looks fine.** A two-percent error
+in a density is invisible in a rendered image, conserves energy perfectly, and
+passes the furnace — and the p-value is 6×10⁻⁵. It is also a matter of how
+hard you look: the same liar is *passed* at a quarter as many draws, with
+p = 0.04.
+
+```
+        draws        cos^1.02 p      cos^0 p
+       262144        2.536e-01    0.000e+00
+       524288        4.266e-02    0.000e+00
+      1048576        5.740e-05    0.000e+00
+      4194304        3.766e-15    0.000e+00
+```
 
 ---
 
