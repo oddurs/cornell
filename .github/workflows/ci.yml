@@ -76,6 +76,13 @@ jobs:
           ./cornell
           ./cornell render 120 --spp 4
 
+          # The inspection sheet. It exits non-zero if any claim fails, so a
+          # BVH that starts disagreeing with an exhaustive search cannot be
+          # merged — which is the whole point of writing the check down.
+          if ./cornell verify >/dev/null 2>&1 || [ $? -ne 127 ]; then
+            ./cornell verify
+          fi
+
           # `make strict` arrives with the Makefile item; until then there is
           # no target to call.
           if grep -q '^strict:' Makefile; then

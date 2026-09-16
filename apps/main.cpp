@@ -25,6 +25,7 @@
 
 #include "render.hpp"
 #include "spec.hpp"
+#include "verify.hpp"
 #include "spectrum.hpp"
 
 namespace {
@@ -44,7 +45,7 @@ constexpr Witness witnesses[] = {
     {"furnace",  "v0.5", "energy conservation, as a pass/fail you can see",         false},
     {"chi2",     "v0.5", "that sample() and pdf() describe the same distribution",  false},
     {"converge", "v0.5", "that RMSE falls as N^-1/2, or the estimator is biased",   false},
-    {"verify",   "v0.5", "every physical claim the project makes, in one run",      false},
+    {"verify",   "v0.4", "every physical claim the project makes, in one run",      true },
     {"swatch",   "v0.6", "the metals, rendered from nothing but citations",         false},
 };
 
@@ -59,6 +60,7 @@ void print_witnesses() {
     std::printf("\n  ./cornell render [width] [--spp N]\n");
     std::printf("  ./cornell spectrum [d65|e|x|y|z|red-wall|green-wall|white-wall]\n");
     std::printf("  ./cornell spec\n");
+    std::printf("  ./cornell verify\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
@@ -94,6 +96,8 @@ int main(int argc, char* argv[]) {
     const std::string_view command{argv[1]};
 
     if (command == "spec") return app::spec();
+
+    if (command == "verify") return app::verify();
 
     if (command == "spectrum") {
         return app::spectrum(argc > 2 ? std::string_view{argv[2]} : std::string_view{"d65"});

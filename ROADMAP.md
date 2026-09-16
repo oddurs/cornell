@@ -92,13 +92,12 @@ A spectrum is a function of wavelength and a monitor has three primaries, and th
 
 ## v0.4 — The box, as measured
 
-`#######···` 64% · 7 of 11 done
+`########··` 73% · 8 of 11 done
 
 The scene arrives, and it is not a scene. It is a plywood box built at Cornell, painted, lit, and photographed with a calibrated radiometer, published with the spectral reflectance of every wall so that a renderer has something to be right about.
 
 ### backlog
 
-- [ ] [`0058`](https://github.com/oddurs/cornell/blob/main/cairn/items/0058-verify-the-bvh-agrees-with-brute-force-on-a-million-random-rays.md) Verify: the BVH agrees with brute force on a million random rays <sup>verify · p0 · verification</sup>
 - [ ] [`0059`](https://github.com/oddurs/cornell/blob/main/cairn/items/0059-tile-based-threading-with-std-jthread-and-nothing-else.md) Tile-based threading with std::jthread, and nothing else <sup>optics · p2 · transport</sup>
 - [ ] [`0060`](https://github.com/oddurs/cornell/blob/main/cairn/items/0060-prose-cornell-hpp-s-opening-in-the-lab-notebook-voice.md) Prose: cornell.hpp's opening, in the lab-notebook voice <sup>prose · p2 · prose</sup>
 - [ ] [`0061`](https://github.com/oddurs/cornell/blob/main/cairn/items/0061-admit-that-the-plywood-is-not-lambertian.md) Admit that the plywood is not Lambertian <sup>prose · p2 · prose · admission</sup>
@@ -112,6 +111,7 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 - [x] [`0055`](https://github.com/oddurs/cornell/blob/main/cairn/items/0055-triangle-intersection-choose-the-algorithm-deliberately.md) Triangle intersection: choose the algorithm deliberately <sup>spike · p2 · geometry</sup>
 - [x] [`0056`](https://github.com/oddurs/cornell/blob/main/cairn/items/0056-triangle-and-the-mesh-that-holds-them.md) Triangle, and the mesh that holds them <sup>optics · p0 · geometry</sup>
 - [x] [`0057`](https://github.com/oddurs/cornell/blob/main/cairn/items/0057-the-bvh-a-binned-sah-build-and-the-one-file-about-speed.md) The BVH: a binned SAH build, and the one file about speed <sup>optics · p0 · accel</sup>
+- [x] [`0058`](https://github.com/oddurs/cornell/blob/main/cairn/items/0058-verify-the-bvh-agrees-with-brute-force-on-a-million-random-rays.md) Verify: the BVH agrees with brute force on a million random rays <sup>verify · p0 · verification</sup>
 
 ## v0.5 — It has to be right
 
