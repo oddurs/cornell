@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <cstdio>
@@ -95,6 +96,8 @@ inline void report(const char* what, const Outcome& o) {
 
 inline int verify() {
     using namespace render;
+
+    const auto started = std::chrono::steady_clock::now();
 
     std::printf("cornell — inspection sheet\n\n");
     std::printf("The acceleration structure changes only the speed of the answer.\n");
@@ -998,9 +1001,20 @@ inline int verify() {
                     "  a p-value.\n");
     }
 
+    // Item 0065 asked for this to run in under a minute or to grow a
+    // `--quick` that says what it skipped. It runs in about two seconds, so
+    // there is nothing to skip and no flag to explain — and the figure is
+    // printed rather than claimed, because the day it stops being true is the
+    // day somebody adds a check that renders at 4096 samples and nobody
+    // notices until CI does.
+    const double seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+
     std::printf("\n%s\n", all_agree
         ? "Every claim above holds."
         : "A CLAIM ABOVE DOES NOT HOLD.");
+    std::printf("%.1f s. There is no --quick, because there is nothing worth skipping.\n",
+                seconds);
     return all_agree ? 0 : 1;
 }
 

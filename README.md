@@ -39,58 +39,85 @@ model has quietly stopped being true and the project is over.
 
 ## Where it has got to
 
-**v0.2 — the cosine law.** It solves the rendering equation. The image is a
-room with five grey walls and a lamp in the ceiling, and it is extremely
-noisy.
+**v0.5 — it has to be right.** The box is the real one: Cornell's geometry and
+their measured spectral reflectances, lit by their measured lamp, and the
+instruments that will judge v0.7's physics are built and calibrated.
 
 ```
 $ make && ./cornell render 400 --spp 64
-400 x 400, 64 samples per pixel, 10.24 million paths, 3.7 s
-  2.79 million paths per second
-spectral radiance at 555 nm, W/m2/sr/m: mean 0.4090, brightest 12.0000
-cornell.pfm   the linear data, which is what a number may be quoted from
-cornell.ppm   the same, exposed against 1.0 W/m2/sr/m and gamma 2.2,
-              which clips the lamp at 12x over, as a photograph would
+400 x 400, 64 samples per pixel, 10.24 million paths, 1.0 s on 10 threads
+  10.25 million paths per second
+luminance Y: mean 0.0107, brightest 1.0694
+out of gamut: 24587 of 160000 pixels have a negative sRGB component
+cornell.pfm   linear sRGB, three channels, unclipped — the file a
+              number may be quoted from
+cornell.ppm   the same, exposed against Y = 0.20, tone mapped with
+              'clip', and encoded with sRGB's transfer function.
+              The lamp is 5x over. No figure is quoted from this file.
 ```
 
 Two of those lines are the machine's rather than the program's — the elapsed
 time and the rate — and will differ on yours. The rest is deterministic: the
-sampler is addressed by pixel and sample index rather than drawn from a
-shared stream, so the mean radiance above is the same number on any machine
-and in any thread count.
+sampler is addressed by pixel and sample index rather than drawn from a shared
+stream, so every figure above is the same on any machine at any thread count,
+and `./cornell verify` checks that rather than asserting it.
 
 Every figure in this file is a copy of something a command printed, and the
 command is shown above it. That is house rule 6, which exists because copies
 rot: the program changes, and a number quoted here without its provenance is a
-claim nobody can check and everybody believes. This section said v0.1 for
-three commits after v0.2 was finished, and quoted a line the program had
-stopped printing — found by a code review rather than by the rule.
+claim nobody can check and everybody believes.
 
-**The walls are grey, not red and green.** A red wall is a spectrum evaluated
-at the wavelengths a path happens to be carrying, and nothing passes those to
-a BSDF yet. That is v0.3, with `cie.hpp`. Typing a plausible red now would be
-the exact thing the section above promises this project never does.
+**This block was stale twice.** It said v0.1 for three commits after v0.2 was
+finished, quoting a line the program had stopped printing — found by a code
+review. Then it sat at v0.2 through three more milestones, quoting `spectral
+radiance at 555 nm` and `gamma 2.2` from a program that had stopped printing
+the first and stopped doing the second, in a section whose own next paragraph
+was about exactly that. Found by item 0065, which is the item that says every
+number here has to trace to a line of output.
 
 Three things in the picture have no code, which is the point of the second
 claim. The shadow under the lamp has a soft edge — the penumbra is the lamp's
 solid angle being partly blocked. The corners are darker than the middles of
-the walls — fewer directions from a corner reach the lamp. The ceiling is lit
-at all, facing away from everything, because light reaches it off the floor.
+the walls — fewer directions from a corner reach the lamp. And the white wall
+beside the red one is faintly red, because light that reaches it came off the
+red one; nobody wrote colour bleeding either.
 
-It is noisy because a path finds the lamp only by wandering into it, which
-for a 0.6 m panel in a 2 m room is a few percent of bounces. That is the
-highest-variance arrangement a correct estimator can have, and v0.8 — direct
-light sampling, and Veach's weighting — is what makes it quiet.
+It is noisy because a path finds the lamp only by wandering into it. Cornell's
+lamp is 130 by 105 mm — 0.01365 m² — in a room 0.55 m across, so it subtends
+about 0.045 of the 6.28 steradians a bounce can go into: **seven paths in a
+thousand** find it per bounce, and everything else returns zero. That is the
+highest-variance arrangement a correct estimator can have, and it is measured
+rather than described: at 4096 samples per pixel the median lit pixel still
+takes five percent of its value from a single sample, against the 0.00024 an
+even estimator would give.
 
-What the two milestones actually settled, which is more than the pictures
+```
+$ ./cornell render 400 --spp 256 --outliers 10
+the largest single sample's share of its own pixel, over 135039 lit
+pixels — an even estimator would give every one of them 0.00391:
+  median 0.4530, 99th percentile 1.0000, and 59476 pixels over a half
+```
+
+Nothing is clamped, and nothing will be: a clamp removes energy, and removed
+energy bends the convergence slope that `./cornell converge` measures. v0.8 —
+direct light sampling, and Veach's weighting — is the fix, and item 0070 says
+in advance what it has to achieve, so that it can fail.
+
+What the five milestones actually settled, which is more than the pictures
 suggest: that the inside of this program is SI, that light is carried as four
 wavelengths rather than three colours, that a direction is a type the compiler
 will not let you forge, that an image file is a fifteen-byte header and some
 numbers, that the discriminant of a ray–sphere intersection has to be
 rearranged or the sphere vanishes at a hundred kilometres, that a ray's offset
 is a count of ulps rather than a length — so the same room renders bit for bit
-identically at 1× and at 1000× — and that the estimator is written out as
-`f · cos / pdf` rather than collapsed, which was measured to cost nothing.
+identically across nine orders of magnitude, at every power of two and *not*
+at 1000×, because multiplying a coordinate by 1024 leaves every mantissa bit
+alone and multiplying it by 1000 is a rounding — that the estimator is written
+out as `f · cos / pdf` rather than collapsed, which was measured to cost
+nothing, that a BRDF and a reflectance differ by a steradian and the compiler
+now says so, that the sRGB standard's printed matrix disagrees with its own
+printed white point, and that Cornell's data page is gone from the live web
+and survives only in the Internet Archive.
 
 ---
 
@@ -193,6 +220,8 @@ deliberately wrong model written to be caught by it — and then **every liar is
 run through every check**, and the misses are printed beside the catches:
 
 ```
+$ ./cornell verify
+
   deliberately wrong model            furnace     chi2  density  swapped
   claims a flat density                     -   caught        -        -
   claims one 2% too steep                   -   caught        -        -
@@ -204,9 +233,15 @@ Four models, each wrong in one way, none of them caught by every column. A
 density can be wrong by two percent and conserve energy *exactly* — it sails
 through the furnace, and it is invisible in a rendered image. A BRDF that
 weights only the incoming direction samples honestly and has a perfectly valid
-density. No column is redundant and no column is sufficient, and that is a
-measurement rather than a caution: it is printed by `./cornell verify`, so it
-cannot quietly stop being true.
+density. No column is sufficient, and the matrix is printed rather than quoted
+from memory, so it cannot quietly stop being true.
+
+The density column is the honest exception: nothing above is caught by it
+alone, and the project says so rather than arranging a fifth liar to justify
+it. What it is for arrives in v0.8, where multiple importance sampling
+evaluates one strategy's density on another strategy's directions — a use of a
+pdf with no sampler attached, which is the one place a chi-squared has nothing
+to compare.
 
 It also caught a claim this README used to make. The normalisation check was
 justified on the textbook argument that a chi-squared test compares *shapes*
@@ -346,7 +381,7 @@ independent pairs and prints its own uncertainty.
 
 ## The roadmap
 
-157 items across 16 milestones, as Markdown files under `cairn/`, rendered
+158 items across 16 milestones, as Markdown files under `cairn/`, rendered
 into [`ROADMAP.md`](ROADMAP.md). `cairn board` prints where everything stands
 and `cairn next` prints what is ready to work on.
 
