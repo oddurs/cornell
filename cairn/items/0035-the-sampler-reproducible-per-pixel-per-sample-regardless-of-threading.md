@@ -35,9 +35,10 @@ make it faster and prove it again.
 
 ## Acceptance criteria
 
-- [ ] Two renders at different thread counts are bit-identical — moved to
-      item 0059, which is where the threads arrive. There were none to
-      count here
+- [x] Two renders at different thread counts are bit-identical — done in item
+      0059, which is where the threads arrived. Six renders at 1, 2, 3, 7, 10
+      and 16 threads are byte-identical, and `./cornell verify` asserts it on
+      every run
 - [x] A test asserts the property that criterion is really about: a
       thousand pixels visited forwards and backwards give bit-identical
       draws, because a stream is addressed rather than dispensed

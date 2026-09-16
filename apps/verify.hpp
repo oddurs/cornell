@@ -27,6 +27,8 @@
 #include <render/scene.hpp>
 #include <render/si.hpp>
 
+#include "render.hpp"
+
 namespace app {
 
 namespace detail {
@@ -180,9 +182,58 @@ inline int verify() {
         all_agree = all_agree && o.disagreed == 0;
     }
 
+    // ── Threading ────────────────────────────────────────────────────────
+    //
+    // The claim is that the thread count changes the speed of the render and
+    // nothing else. It is true because `sampler.hpp` addresses a stream by
+    // (pixel, sample) rather than dispensing from a shared one, and because
+    // tiles write to disjoint pixels — but that is an argument, and this is
+    // the check.
+    //
+    // Item 0035 wrote this criterion in v0.2 and could not satisfy it,
+    // because there were no threads to count.
+    {
+        std::printf("\nThe thread count changes the speed and not the answer.\n\n");
+
+        RenderSettings small;
+        small.width = 96;
+        small.spp = 8;
+
+        const Scene box = cornell::box();
+        const Camera camera = Camera::look_at(cornell::at(278.0, 273.0, -800.0),
+                                              cornell::at(278.0, 273.0, 0.0),
+                                              Vec3{0.0, 1.0, 0.0},
+                                              film_width, film_height, film_distance);
+        const int height = height_for(small.width);
+
+        small.threads = 1;
+        const Film reference = expose(small, box, camera, height);
+
+        for (const int n : {2, 3, 7, 16}) {
+            small.threads = n;
+            const Film other = expose(small, box, camera, height);
+
+            long differing = 0;
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < small.width; ++x) {
+                    const Xyz a = reference.mean_tristimulus(x, y);
+                    const Xyz b = other.mean_tristimulus(x, y);
+                    if (a.x != b.x || a.y != b.y || a.z != b.z) ++differing;
+                }
+
+            char label[64];
+            std::snprintf(label, sizeof label, "1 thread against %d, compared exactly", n);
+            std::printf("  %-46s %9d pixels   %s\n", label,
+                        small.width * height, differing == 0 ? "agree" : "DISAGREE");
+            if (differing != 0)
+                std::printf("      %ld pixels differ at %d threads\n", differing, n);
+            all_agree = all_agree && differing == 0;
+        }
+    }
+
     std::printf("\n%s\n", all_agree
-        ? "The index and the exhaustive search agree on every ray, exactly."
-        : "THE INDEX DISAGREES WITH THE EXHAUSTIVE SEARCH.");
+        ? "Every claim above holds."
+        : "A CLAIM ABOVE DOES NOT HOLD.");
     return all_agree ? 0 : 1;
 }
 
