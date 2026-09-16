@@ -594,7 +594,7 @@ inline Radiance radiance(const Scene& scene,
         // and item 0032 for the measurement of what refusing to cancel it
         // costs, which is nothing.
         const double cos_theta_i = abs_cos_theta(scattered.wi);
-        throughput = throughput * (scattered.f * (cos_theta_i / scattered.pdf));
+        throughput = throughput * (scattered.f * cos_theta_i / scattered.pdf);
 
         // ── Russian roulette ─────────────────────────────────────────────
         //

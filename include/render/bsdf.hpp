@@ -102,25 +102,33 @@
 // makes the BSDF's reciprocity — `f(wo, wi) == f(wi, wo)` — visible as a
 // symmetry in the code rather than a fact you have to remember.
 //
-// ── What the type system is not tracking, and should be ──────────────────
+// ── What `f` is, which took four milestones to say in the types ──────────
 //
-// `f` is returned as a `Reflectance`, and a BRDF is not a reflectance. A
-// reflectance is dimensionless and at most 1; a BRDF has units of inverse
-// steradians and is unbounded — a mirror's is a delta function. The estimator
-// `f · cos(theta) / pdf` is dimensionless because the sr⁻¹ in `f` cancels the
-// sr⁻¹ in `pdf`, and none of that is in the types.
+// `f` is a `Brdf` and not a `Reflectance`, and the difference is a steradian.
+// A reflectance is dimensionless and at most 1 — the fraction a surface keeps
+// — where a BRDF is that fraction per steradian, unbounded, a delta function
+// for a mirror and routinely far above 1 near a rough conductor's lobe.
 //
-// This is the one place the project's own argument — that `Radiance` and
-// `Irradiance` are distinct types because they differ by a steradian — is not
-// being enforced, and saying so is better than letting a reader assume it was
-// considered. Fixing it needs `Sampled` to carry units rather than a bare tag,
-// which is a change to `spectrum.hpp` and to every expression downstream of
-// it. It is filed as its own item rather than smuggled in here.
+// For four milestones both were spelled `Reflectance`, and every expression
+// involving them was correct because the author had checked rather than
+// because the compiler had. That is the one place this project's own argument
+// — `Radiance` and `Irradiance` are distinct types because they differ by a
+// steradian — was not being made about the quantity where the confusion is
+// most expensive. `spectrum.hpp` now carries the algebra: a `Brdf` is made by
+// spreading a reflectance over a solid angle, and the only way back out is
+// dividing by a density over directions, which is the estimator below.
+//
+// What it buys immediately is a check that cannot be written otherwise. The
+// white furnace test asserts that a BRDF integrated against the cosine over
+// the hemisphere is at most 1 — that the *integral* is a reflectance, while
+// the integrand is not — and expressing that in a type system where both are
+// the same type is expressing nothing.
 
 #pragma once
 
 #include <cmath>
 #include <concepts>
+#include <render/density.hpp>
 #include <render/spectrum.hpp>
 #include <render/vec.hpp>
 
@@ -131,13 +139,13 @@ namespace render {
 // one object, because a caller holding only the first has already lost.
 struct BsdfSample {
     Vec3 wi{};                  // local frame, pointing away from the surface
-    Reflectance f{};            // the BRDF value, per steradian — see above
-    double pdf = 0.0;           // per steradian
+    Brdf f{};                   // sr⁻¹
+    SolidAngleDensity pdf{};    // sr⁻¹, over the same directions
 
     // A sample that carries no light. Returned rather than an empty optional
     // because "the surface absorbed it" is an outcome the path loop handles
     // the same way it handles everything else: multiply by zero and stop.
-    constexpr bool is_black() const { return pdf <= 0.0 || f.is_black(); }
+    constexpr bool is_black() const { return !pdf.positive() || f.is_black(); }
 };
 
 // The contract, as something the compiler checks.
@@ -150,8 +158,8 @@ template <class T>
 concept BsdfModel = requires(const T& bsdf, Vec3 wo, Vec3 wi, double u,
                              const Wavelengths& lambdas) {
     { bsdf.sample(wo, lambdas, u, u) } -> std::same_as<BsdfSample>;
-    { bsdf.eval(wo, wi, lambdas) }     -> std::same_as<Reflectance>;
-    { bsdf.pdf(wo, wi) }               -> std::same_as<double>;
+    { bsdf.eval(wo, wi, lambdas) }     -> std::same_as<Brdf>;
+    { bsdf.pdf(wo, wi) }               -> std::same_as<SolidAngleDensity>;
 };
 
 // `pdf` is the exception, and the asymmetry is worth a sentence. A density
