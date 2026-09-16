@@ -639,6 +639,125 @@ inline int verify() {
                     "  surface of a lamp. It arrives with v0.8, and so does this row.\n");
     }
 
+    // ── Reciprocity ──────────────────────────────────────────────────────
+    //
+    // Item 0068. Helmholtz reciprocity: light does not care which end of a
+    // path it started from, so
+    //
+    //      f(wo, wi) == f(wi, wo)
+    //
+    // for every BSDF in the project. `bsdf.hpp` chose the physicists'
+    // convention — both directions point away from the surface — precisely so
+    // that this is a symmetry in the code rather than a fact to remember.
+    //
+    // It matters later rather than now. A non-reciprocal BSDF breaks
+    // bidirectional path tracing in v1.4 in ways that are close to
+    // undiagnosable from an image: a path built from the eye and the same
+    // path built from the light disagree about their own weight, and the
+    // result is an image that is subtly wrong in a way nothing points at.
+    //
+    // ── The exception, stated now rather than excused later ──────────────
+    //
+    // Refraction across an interface between media of different index is
+    // *not* reciprocal in radiance. It carries a factor of the squared index
+    // ratio, for the good reason that radiance itself is not conserved across
+    // such a boundary — a beam entering glass is compressed into a smaller
+    // solid angle and its radiance rises by n^2, which is why a fish looks
+    // closer than it is and why the bottom of a swimming pool does not.
+    //
+    // That is real physics and it arrives in v0.9. When it does, this check
+    // must learn about it rather than be relaxed: what stays exactly true is
+    // `f(wo, wi) / n_o^2 == f(wi, wo) / n_i^2`, and a reflector is the case
+    // where the two indices are the same one.
+    {
+        using namespace chi2_detail;
+
+        std::printf("\nEvery BSDF returns the same value with its arguments swapped.\n\n");
+
+        const Wavelengths lambdas = Wavelengths::sample(0.5);
+        const Bsdf grey{GreyLambert{Flat{0.5}}};
+        const Bsdf spectral{SpectralLambert{cie::d65}};
+        const Bsdf measured{MeasuredLambert{cornell::red}};
+
+        constexpr int pairs = 1 << 20;
+
+        // Directions over the whole sphere, so that the pairs include ones on
+        // opposite sides of the surface. A reflector returns zero for those,
+        // and zero on both sides is a claim worth checking: a hemisphere test
+        // written with the wrong comparison is how light leaks through a wall.
+        const auto sweep = [&](const auto& model) {
+            long compared = 0, differing = 0, both_zero = 0;
+            double worst = 0.0;
+
+            for (int i = 0; i < pairs; ++i) {
+                Sampler sampler{0x51ed'2701'a9e3'31b7, std::uint64_t(i)};
+                const auto [u1, v1] = sampler.next2();
+                const auto [u2, v2] = sampler.next2();
+
+                const auto on_the_sphere = [](double u, double v) {
+                    const double mu = 2.0 * u - 1.0;
+                    const double r = std::sqrt(std::fmax(0.0, 1.0 - mu * mu));
+                    const double phi = si::two_pi * v;
+                    return Vec3{r * std::cos(phi), r * std::sin(phi), mu};
+                };
+
+                const Vec3 a = on_the_sphere(u1, v1);
+                const Vec3 b = on_the_sphere(u2, v2);
+
+                const Brdf forward = model.eval(a, b, lambdas);
+                const Brdf backward = model.eval(b, a, lambdas);
+                ++compared;
+
+                if (forward.is_black() && backward.is_black()) { ++both_zero; continue; }
+
+                for (int k = 0; k < spectral_samples; ++k) {
+                    if (forward[k] != backward[k]) {
+                        ++differing;
+                        worst = std::fmax(worst, std::fabs(forward[k] - backward[k]));
+                        break;
+                    }
+                }
+            }
+            return std::tuple{compared, differing, both_zero, worst};
+        };
+
+        const std::pair<const char*, const Bsdf*> models[] = {
+            {"lambert, grey albedo",      &grey},
+            {"lambert, D65 as an albedo", &spectral},
+            {"lambert, Cornell's red",    &measured},
+        };
+
+        for (const auto& [name, bsdf] : models) {
+            const auto [compared, differing, both_zero, worst] = sweep(Dispatch{*bsdf});
+            const bool ok = differing == 0 && both_zero > 0 && both_zero < compared;
+            all_agree = all_agree && ok;
+
+            std::printf("  %-46s %9ld pairs   %s   (%ld across the surface)\n",
+                        name, compared, ok ? "agree" : "DISAGREE", both_zero);
+            if (differing != 0)
+                std::printf("      %ld pairs differ, worst %.3e\n", differing, worst);
+        }
+
+        // Compared exactly, and it can be: a Lambertian's BRDF does not
+        // depend on either direction once both are on the same side, so the
+        // two calls return the same double rather than nearly the same one.
+        // A tolerance here would be a tolerance for an error that cannot
+        // exist yet and would hide one that can.
+        const auto [compared, differing, both_zero, worst] = sweep(NotReciprocal{});
+        const bool caught = differing > 0;
+        all_agree = all_agree && caught;
+        (void)both_zero;
+        std::printf("  %-46s %9ld pairs   %s   worst %.3e\n",
+                    "one that weights only wi, which must fail", compared,
+                    caught ? "caught" : "ESCAPED", worst);
+
+        std::printf("\n  Compared exactly. Refraction is the legitimate exception and does\n"
+                    "  not exist yet: crossing into a medium of different index multiplies\n"
+                    "  radiance by the squared index ratio, so what stays true there is\n"
+                    "  f(wo,wi)/n_o^2 == f(wi,wo)/n_i^2. v0.9 teaches this check that,\n"
+                    "  rather than relaxing it when it starts failing.\n");
+    }
+
     std::printf("\n%s\n", all_agree
         ? "Every claim above holds."
         : "A CLAIM ABOVE DOES NOT HOLD.");
