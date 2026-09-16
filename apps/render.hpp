@@ -333,7 +333,8 @@ inline render::Film expose(const RenderSettings& settings,
                         radiance(scene, camera.ray_through(u, v), lambdas, sampler,
                                  default_max_depth, settings.roulette_start);
 
-                    film.add_sample(x, y, lambdas, carried);
+                    film.add_sample(x, y, std::uint64_t(settings.sample_offset + s),
+                                    lambdas, carried);
                 }
             }
         }

@@ -19,6 +19,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 #include <cstdio>
 #include <vector>
 
@@ -756,6 +757,102 @@ inline int verify() {
                     "  radiance by the squared index ratio, so what stays true there is\n"
                     "  f(wo,wi)/n_o^2 == f(wi,wo)/n_i^2. v0.9 teaches this check that,\n"
                     "  rather than relaxing it when it starts failing.\n");
+    }
+
+    // ── No NaN survives to the film ──────────────────────────────────────
+    //
+    // Item 0069. One non-finite value in an accumulation buffer poisons that
+    // pixel for the rest of the render, and it propagates silently through
+    // every operation that touches it: the sum is a NaN, the mean is a NaN,
+    // and the image has a hole in it that says nothing about where it came
+    // from. `film.hpp` asserts against it at the point of deposit and names
+    // the `(pixel, sample)` that produced it, which `./cornell replay` turns
+    // back into one path on one thread.
+    //
+    // This is the other half: the assertion fires on the way in, and this
+    // scans what came out. An assertion only speaks when it is violated, so
+    // a sheet that relies on it alone cannot tell "no NaN occurred" from "the
+    // assertion was compiled out".
+    {
+        std::printf("\nNo non-finite value reaches the film.\n\n");
+
+        const auto scan = [](const Film& film) {
+            long bad = 0, checked = 0;
+            for (int y = 0; y < film.height(); ++y)
+                for (int x = 0; x < film.width(); ++x) {
+                    const Xyz value = film.mean_tristimulus(x, y);
+                    checked += 3;
+                    if (!std::isfinite(value.x) || !std::isfinite(value.y)
+                        || !std::isfinite(value.z)) ++bad;
+
+                    for (int bin = 0; bin < film_bins; ++bin) {
+                        ++checked;
+                        if (!std::isfinite(film.mean_radiance(x, y, bin))) ++bad;
+                    }
+                }
+            return std::pair{checked, bad};
+        };
+
+        RenderSettings scanned;
+        scanned.width = 96;
+        scanned.spp = 16;
+        const int scanned_height = height_for(scanned.width);
+        const Camera box_camera = Camera::look_at(cornell::at(278.0, 273.0, -800.0),
+                                                  cornell::at(278.0, 273.0, 0.0),
+                                                  Vec3{0.0, 1.0, 0.0},
+                                                  film_width, film_height, film_distance);
+
+        const auto [checked, bad] =
+            scan(expose(scanned, cornell::box(), box_camera, scanned_height));
+        all_agree = all_agree && bad == 0;
+        std::printf("  %-46s %9ld values   %s\n",
+                    "the box, every bin and every tristimulus", checked,
+                    bad == 0 ? "all finite" : "NOT FINITE");
+
+        // The predicate itself, because `x != x` catches a NaN and lets an
+        // infinity through, and an infinity poisons a running sum just as
+        // thoroughly. `film.hpp` uses `std::isfinite` for exactly that.
+        Radiance poisoned;
+        poisoned[2] = std::nan("");
+        Radiance unbounded;
+        unbounded[1] = std::numeric_limits<double>::infinity();
+
+        const bool predicate = !finite(poisoned) && !finite(unbounded)
+                            && finite(Radiance{1.0});
+        all_agree = all_agree && predicate;
+        std::printf("  %-46s %9d values   %s\n",
+                    "a NaN and an infinity, which must both fail", 3,
+                    predicate ? "caught" : "ESCAPED");
+
+        // And the one NaN this project knows how to make, which turns out not
+        // to reach the film at all.
+        {
+            const Camera degenerate =
+                Camera::look_at(Vec3{0, 0, -1}, Vec3{0, 0, 0}, Vec3{0, 0, 1},
+                                film_width, film_height, film_distance);
+            const Ray ray = degenerate.ray_through(0.5, 0.5);
+
+            Sampler sampler{0, 0};
+            const Wavelengths lambdas = Wavelengths::sample(0.5);
+            const Radiance carried = radiance(cornell::box(), ray, lambdas, sampler);
+
+            const bool direction_is_nan = !std::isfinite(ray.direction.x());
+            const bool result_is_finite = finite(carried) && carried.is_black();
+            const bool as_described = direction_is_nan && result_is_finite;
+            all_agree = all_agree && as_described;
+
+            std::printf("  %-46s %9d path     %s\n",
+                        "a camera with no idea which way is up", 1,
+                        as_described ? "black, not NaN" : "NOT AS DESCRIBED");
+        }
+
+        std::printf("\n  The last row is a correction. `camera.hpp` says a degenerate `up`\n"
+                    "  hint produces a NaN direction left to propagate rather than be\n"
+                    "  papered over, and it does — into the ray. It stops there. Every\n"
+                    "  comparison against a NaN is false, so the intersection finds\n"
+                    "  nothing, the path escapes, and what arrives at the film is a\n"
+                    "  perfectly finite zero. The failure is a black image rather than a\n"
+                    "  poisoned one, and no assertion at the film can catch it.\n");
     }
 
     std::printf("\n%s\n", all_agree

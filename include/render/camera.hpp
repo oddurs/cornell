@@ -112,6 +112,14 @@ public:
     // opinion about which way is right — and the cross product then has zero
     // length and `normalize` returns NaN. That is left to propagate rather
     // than be papered over, for the reason `vec.hpp` gives.
+    //
+    // How far it propagates is worth knowing, and it is not far. Item 0069
+    // measured it: the NaN reaches the ray and stops there. Every comparison
+    // against a NaN is false, so the intersection finds nothing, the path
+    // escapes, and the film receives a perfectly finite zero. A camera with
+    // no idea which way is up renders black rather than poisoned, which is a
+    // failure no assertion at the film can catch — and is on the inspection
+    // sheet as a row rather than left as an assumption about propagation.
     static Camera look_at(const Vec3& eye,
                           const Vec3& target,
                           const Vec3& up_hint,

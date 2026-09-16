@@ -82,6 +82,9 @@
 // belongs with the camera body in v1.5, if ever.
 
 #pragma once
+#include <cassert>
+#include <cmath>
+#include <cstdio>
 
 #include <cstdint>
 #include <vector>
@@ -95,6 +98,20 @@ namespace render {
 // derivation.
 inline constexpr int film_bins = 47;
 inline constexpr double film_bin_width = (si::lambda_max - si::lambda_min) / film_bins;
+
+// Whether every wavelength of a sample is a number. Named rather than written
+// out at the point of use because it is asked in two places — the assertion
+// below, and `verify.hpp` scanning a finished film — and the two must mean the
+// same thing.
+//
+// `std::isfinite` rather than a comparison against itself: a NaN fails `x ==
+// x`, and an infinity passes it while being just as poisonous to a running
+// sum. Both are what this is looking for.
+inline bool finite(const Radiance& value) {
+    for (int i = 0; i < spectral_samples; ++i)
+        if (!std::isfinite(value[i])) return false;
+    return true;
+}
 
 class Film {
 public:
@@ -114,7 +131,31 @@ public:
     // four different bins and one sample contributes to four of them —
     // which is the whole economy of hero wavelength sampling showing up at
     // the sensor.
-    void add_sample(int x, int y, const Wavelengths& lambdas, const Radiance& value) {
+    // `sample` is carried only so that the assertion below can name it, and
+    // that is worth a parameter. One NaN in an accumulation buffer poisons
+    // that pixel for the rest of the render and propagates silently through
+    // every operation that touches it, so the sum is wrong, the mean is wrong,
+    // and the image has a black hole in it with nothing to say about where it
+    // came from. An assertion that can only say "somewhere" is an assertion
+    // nobody can act on; this one says `(pixel, sample)`, which is an address
+    // rather than a description — `sampler.hpp` made those two numbers the
+    // whole state of a path, so they are enough to run it again.
+    void add_sample(int x, int y, std::uint64_t sample,
+                    const Wavelengths& lambdas, const Radiance& value) {
+        // Active in the ordinary build, because the Makefile does not define
+        // NDEBUG and should not: four comparisons per *sample* sit next to a
+        // ray-scene intersection and cost nothing measurable, and a renderer
+        // that trades a NaN check for that is trading the wrong way.
+        assert(finite(value) && "a non-finite radiance reached the film");
+        if (!finite(value)) {
+            std::fprintf(stderr,
+                         "cornell: non-finite radiance at pixel (%d, %d), sample %llu.\n"
+                         "         ./cornell replay %d,%d,%llu runs that path again.\n",
+                         x, y, static_cast<unsigned long long>(sample),
+                         x, y, static_cast<unsigned long long>(sample));
+            return;
+        }
+
         const std::size_t pixel = (std::size_t(y) * std::size_t(width_) + std::size_t(x)) * film_bins;
         for (int i = 0; i < spectral_samples; ++i) {
             const std::size_t bin = pixel + std::size_t(bin_of(lambdas[i]));
