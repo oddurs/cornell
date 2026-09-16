@@ -39,6 +39,7 @@
 #include <vector>
 
 #include <render/cie.hpp>
+#include <render/cornell.hpp>
 #include <render/illuminant.hpp>
 #include <render/si.hpp>
 #include <render/srgb.hpp>
@@ -100,11 +101,21 @@ inline double mccamy_cct(const render::Chromaticity& c) {
     return 449.0 * n * n * n + 3525.0 * n * n + 6823.3 * n + 5520.33;
 }
 
+// `is_light` decides whether a correlated colour temperature is printed.
+//
+// A CCT is the temperature of the Planckian radiator a *light* most resembles.
+// A reflectance is not a light, and asking what temperature a wall is has no
+// answer — the first version of this printed "1632 K" under the red wall,
+// which is McCamy's cubic being evaluated a long way off the locus it was
+// fitted near, and is a number that means nothing at all. An instrument that
+// prints a meaningless figure beside three meaningful ones is worse than one
+// that prints three.
 inline void report(std::string_view name,
                    const std::vector<double>& values,
                    const render::Xyz& tristimulus,
                    std::string_view units,
-                   std::string_view source) {
+                   std::string_view source,
+                   bool is_light) {
     std::printf("%.*s\n", int(name.size()), name.data());
     std::printf("  %.*s\n\n", int(source.size()), source.data());
 
@@ -115,8 +126,12 @@ inline void report(std::string_view name,
     std::printf("  XYZ            %.6f  %.6f  %.6f\n",
                 tristimulus.x, tristimulus.y, tristimulus.z);
     std::printf("  chromaticity   x = %.5f   y = %.5f\n", c.x, c.y);
-    std::printf("  CCT            %.0f K   (McCamy's fit, +-2 K; see the header)\n",
-                mccamy_cct(c));
+    if (is_light)
+        std::printf("  CCT            %.0f K   (McCamy's fit, +-2 K; see the header)\n",
+                    mccamy_cct(c));
+    else
+        std::printf("  luminous       Y = %.4f   (no CCT: this is not a light)\n",
+                    tristimulus.y);
 
     // And what a display would do with it, which is where out-of-gamut stops
     // being an abstraction.
@@ -146,7 +161,37 @@ inline int spectrum(std::string_view which) {
                        "relative spectral power, normalised to 100 at 560 nm",
                        which == "d65"
                            ? "cvrl.org, Illuminantd65.csv, on the CIE 5 nm grid"
-                           : "defined, not measured: the same power at every wavelength");
+                           : "defined, not measured: the same power at every wavelength",
+                       true);
+        return 0;
+    }
+
+    if (which == "red-wall" || which == "green-wall" || which == "white-wall") {
+        const auto& wall = which == "red-wall"   ? cornell::red
+                         : which == "green-wall" ? cornell::green
+                                                 : cornell::white;
+        // Plotted on the observer's grid rather than the wall's, so that the
+        // held endpoints outside 400-700 nm are visible rather than cropped
+        // out of the picture.
+        for (std::size_t i = 0; i < cie::samples; ++i)
+            values.push_back(wall.at(cie::first + double(i) * cie::step));
+
+        // What this wall looks like under D65: the reflectance times the
+        // light, integrated against the observer.
+        Xyz total;
+        double white_point = 0.0;
+        for (std::size_t i = 0; i < cie::samples; ++i) {
+            const double lambda = cie::first + double(i) * cie::step;
+            total += cie::observer[i] * (cie::d65.table[i] * wall.at(lambda));
+            white_point += cie::d65.table[i] * cie::observer[i].y;
+        }
+
+        detail::report(std::string(which) + " — measured paint, under D65",
+                       values, total * (1.0 / white_point),
+                       "reflectance, dimensionless; the XYZ below is this wall lit by D65",
+                       "Cornell PCG, measured at 4 nm from 400 to 700 nm. "
+                       "Held at its endpoints outside that; see cornell.hpp.",
+                       false);
         return 0;
     }
 
@@ -165,7 +210,8 @@ inline int spectrum(std::string_view which) {
                        "matching function, dimensionless; the XYZ below is the "
                        "observer's own integral, i.e. equal-energy white",
                        "Wright's ten observers and Guild's seven, averaged by the "
-                       "CIE in 1931. See cie.hpp.");
+                       "CIE in 1931. See cie.hpp.",
+                       false);
         return 0;
     }
 
@@ -174,6 +220,7 @@ inline int spectrum(std::string_view which) {
     std::fprintf(stderr, "  d65   average daylight, as a table\n");
     std::fprintf(stderr, "  e     equal energy, as a definition\n");
     std::fprintf(stderr, "  x y z the three colour matching functions\n");
+    std::fprintf(stderr, "  red-wall green-wall white-wall   the measured paint\n");
     return 1;
 }
 
