@@ -26,6 +26,7 @@
 
 #include <render/cornell.hpp>
 #include <render/fresnel.hpp>
+#include <render/schlick.hpp>
 #include <render/sampler.hpp>
 #include <render/scene.hpp>
 #include <render/si.hpp>
@@ -1196,6 +1197,70 @@ inline int verify() {
                           "a conductor's r_p bottoms at %.2f degrees, not zero", at);
             std::printf("  %-58s %9s        %s   R = %.5f\n", label, "n=0.2 k=3",
                         ok ? "agree" : "DISAGREE", value);
+        }
+
+        // ── And the fit next door ────────────────────────────────────────
+        //
+        // Item 0076. `schlick.hpp` quotes its own error against the exact
+        // equations, and the figures in that comment come from here, so that
+        // the file cannot go on claiming an accuracy it stopped having.
+        //
+        // Nothing else in the project calls Schlick. This is its only caller,
+        // and what it does with it is measure how wrong it is.
+        {
+            std::printf("\n  The fit next door, against the law. Unpolarised, 90,001 angles:\n\n"
+                        "    %-22s %9s %11s %11s %10s\n",
+                        "index", "R0", "max error", "mean error", "worst at");
+
+            const auto compare = [](const Index& eta) {
+                const double r0 = schlick::r0_of(eta);
+                double worst = 0.0, at = 0.0, total = 0.0;
+                long angles = 0;
+
+                for (int i = 0; i <= 90'000; ++i) {
+                    const double degrees = double(i) / 1000.0;
+                    const double cosine = std::cos(degrees * si::pi / 180.0);
+                    const double error = std::fabs(schlick::reflectance(r0, cosine)
+                                                   - fresnel(cosine, eta).unpolarised());
+                    if (error > worst) { worst = error; at = degrees; }
+                    total += error;
+                    ++angles;
+                }
+                return std::tuple{r0, worst, total / double(angles), at};
+            };
+
+            struct Row { const char* name; Index eta; double allowed; };
+            // The bound beside each is the figure quoted in `schlick.hpp`,
+            // rounded up. It is not a tolerance on a physical claim — the
+            // error is whatever it is — it is the mechanism that stops that
+            // comment drifting away from this measurement.
+            const Row rows[] = {
+                {"water,        1.330", Index{1.330, 0.0}, 0.0600},
+                {"window glass, 1.500", Index{1.500, 0.0}, 0.0357},
+                {"diamond,      2.417", Index{2.417, 0.0}, 0.0755},
+                {"n=0.2  k=3.0",        Index{0.20, 3.0},  0.0155},
+                {"n=1.1  k=7.0",        Index{1.10, 7.0},  0.1012},
+                {"n=0.05 k=4.2",        Index{0.05, 4.2},  0.0061},
+            };
+
+            for (const Row& row : rows) {
+                const auto [r0, worst, mean, at] = compare(row.eta);
+                const bool ok = worst < row.allowed;
+                all_agree = all_agree && ok;
+                std::printf("    %-22s %9.5f %11.5f %11.5f %7.1f deg  %s\n",
+                            row.name, r0, worst, mean, at, ok ? "" : "WORSE THAN QUOTED");
+            }
+
+            std::printf("\n    About one percent on average and three to eight at the worst,\n"
+                        "    from one line, which is why it won. Every maximum is at 84 or\n"
+                        "    85 degrees: the fit is pinned at both ends by construction and\n"
+                        "    the last few degrees before grazing are where it has the most\n"
+                        "    room to be wrong.\n"
+                        "\n    The complex rows are the ones worth reading. The error is not\n"
+                        "    a multiple of the dielectric error — it is 0.006 at one index\n"
+                        "    and 0.101 at another, better and worse than glass — because a\n"
+                        "    conductor's curve is not the shape Schlick fitted and how badly\n"
+                        "    that shows depends on the index. There is no factor to apply.\n");
         }
 
         std::printf("\n  The last row is why the dielectric and the conductor are one\n"
