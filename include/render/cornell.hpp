@@ -1,7 +1,64 @@
 // cornell.hpp — the box, as somebody measured it.
 //
-// This is the file the repository is named after, and the reason the project
-// exists. Everything before it is machinery; this is the object.
+// This is the file the repository is named after. Everything before it is
+// machinery; this is the object.
+//
+// ── Who built it, and what they were arguing about ───────────────────────
+//
+// In 1984 Cindy Goral, Kenneth Torrance, Donald Greenberg and Bennett
+// Battaile published "Modeling the Interaction of Light Between Diffuse
+// Surfaces". The method was radiosity, borrowed from thermal engineering —
+// Torrance's field — and applied to light: divide the surfaces into patches,
+// work out how much of each patch every other patch can see, and solve the
+// resulting system for the radiosity of each. It produces the soft gradients
+// and the colour bleeding that ray tracing of the day could not, because ray
+// tracing of the day followed only specular paths.
+//
+// The problem was that nobody had any reason to believe it. A new method
+// produces a picture; a picture is not an argument. The literature was full
+// of images that looked plausible and were checked against nothing, and
+// radiosity's central quantity — the form factor between two patches — was a
+// geometric abstraction with no obvious way to tell whether the number coming
+// out was right.
+//
+// So they built the thing. Plywood, painted, a light in the ceiling, two
+// blocks on the floor. They measured the spectral reflectance of the paint,
+// photographed the box with a calibrated instrument, rendered the same scene,
+// and printed the photograph beside the render.
+//
+// That is the whole reason this project is named after a box. Not because it
+// is a convenient test scene — it has been one for forty years, and almost
+// every renderer that draws it has quietly forgotten there is an original —
+// but because it is the moment somebody in this field said "here is my
+// answer, and here is the world, and you may compare them".
+//
+// ── What this project owes it ────────────────────────────────────────────
+//
+// The same comparison, forty years later, with a different algorithm. Goral
+// and colleagues solved a linear system over patches; this solves an integral
+// equation by following paths, which is a method that did not exist in usable
+// form until Kajiya two years afterwards. If both are right they must agree
+// with the same photograph, and v1.0 is where that is attempted.
+//
+// It is worth being precise about which photograph, because item 0051 found
+// that there are two eras of them. The 1984 plate is the historical one. The
+// data below, and the images this project will actually be compared against,
+// come from a re-measurement of the box published by the Program of Computer
+// Graphics around 2005, with a liquid-cooled CCD and seven narrow-band
+// filters. The argument is unchanged — somebody else measured a real object
+// before any of this was written — but the claim has to name the right
+// measurement.
+//
+// ── What could still be wrong ────────────────────────────────────────────
+//
+// If the comparison in v1.0 fails, the suspects are written down in advance
+// rather than found afterwards. The lamp's spectrum is four numbers and its
+// absolute scale was never published. The paint is assumed Lambertian and is
+// not — item 0061. And this is geometric optics throughout, which
+// `transport.hpp` has admitted at length.
+//
+// A prediction made before the measurement is worth more than an explanation
+// offered after it.
 //
 // Item 0051 is the spike that had to close before a line of this could be
 // written, and it should be read alongside this file. The short version:
