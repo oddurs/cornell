@@ -116,13 +116,12 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 
 ## v0.5 — It has to be right
 
-`··········` 0% · 0 of 10 done
+`#·········` 10% · 1 of 10 done
 
 The instruments of proof, built before the physics they will judge, because a check written after the thing it checks is a check written to pass.
 
 ### backlog
 
-- [ ] [`0062`](https://github.com/oddurs/cornell/blob/main/cairn/items/0062-apps-furnace-the-white-furnace-test.md) apps/furnace: the white furnace test <sup>instrument · p0 · instrument · thesis</sup>
 - [ ] [`0063`](https://github.com/oddurs/cornell/blob/main/cairn/items/0063-apps-chi2-catch-a-sampling-routine-lying-about-its-own-density.md) apps/chi2: catch a sampling routine lying about its own density <sup>instrument · p0 · instrument · thesis</sup>
 - [ ] [`0064`](https://github.com/oddurs/cornell/blob/main/cairn/items/0064-apps-converge-the-slope-is-minus-one-half-or-the-estimator-is-biased.md) apps/converge: the slope is minus one half or the estimator is biased <sup>instrument · p0 · instrument</sup>
 - [ ] [`0065`](https://github.com/oddurs/cornell/blob/main/cairn/items/0065-apps-verify-the-inspection-sheet.md) apps/verify: the inspection sheet <sup>instrument · p0 · instrument</sup>
@@ -132,6 +131,10 @@ The instruments of proof, built before the physics they will judge, because a ch
 - [ ] [`0069`](https://github.com/oddurs/cornell/blob/main/cairn/items/0069-verify-no-nan-survives-to-the-film-asserted.md) Verify: no NaN survives to the film, asserted <sup>verify · p2 · verification</sup>
 - [ ] [`0070`](https://github.com/oddurs/cornell/blob/main/cairn/items/0070-fireflies-diagnose-rather-than-clamp.md) Fireflies: diagnose rather than clamp <sup>spike · p2 · transport · admission</sup>
 - [ ] [`0071`](https://github.com/oddurs/cornell/blob/main/cairn/items/0071-prose-why-the-instruments-are-built-before-the-physics.md) Prose: why the instruments are built before the physics <sup>prose · p2 · prose</sup>
+
+### done
+
+- [x] [`0062`](https://github.com/oddurs/cornell/blob/main/cairn/items/0062-apps-furnace-the-white-furnace-test.md) apps/furnace: the white furnace test <sup>instrument · p0 · instrument · thesis</sup>
 
 ## v0.6 — You never type a colour
 

@@ -21,8 +21,10 @@
 // milestone, it moves here too, in the same commit.
 
 #include <cstdio>
+#include <cstdlib>
 #include <string_view>
 
+#include "furnace.hpp"
 #include "render.hpp"
 #include "spec.hpp"
 #include "verify.hpp"
@@ -42,7 +44,7 @@ constexpr Witness witnesses[] = {
     {"render",   "v0.1", "the image itself",                                        true },
     {"spec",     "v0.4", "the box as a specification, everything derived",        true },
     {"spectrum", "v0.3", "any spectrum in the project, with its chromaticity",      true },
-    {"furnace",  "v0.5", "energy conservation, as a pass/fail you can see",         false},
+    {"furnace",  "v0.5", "energy conservation, as a pass/fail you can see",         true },
     {"chi2",     "v0.5", "that sample() and pdf() describe the same distribution",  false},
     {"converge", "v0.5", "that RMSE falls as N^-1/2, or the estimator is biased",   false},
     {"verify",   "v0.4", "every physical claim the project makes, in one run",      true },
@@ -60,7 +62,8 @@ void print_witnesses() {
     std::printf("\n  ./cornell render [width] [--spp N]\n");
     std::printf("  ./cornell spectrum [d65|e|x|y|z|red-wall|green-wall|white-wall]\n");
     std::printf("  ./cornell spec\n");
-    std::printf("  ./cornell verify\n");
+    std::printf("  ./cornell verify\n"
+                "  ./cornell furnace [--bsdf lambert] [--rho R] [--no-image]\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
@@ -99,6 +102,19 @@ int main(int argc, char* argv[]) {
     if (command == "spec") return app::spec();
 
     if (command == "verify") return app::verify();
+
+    if (command == "furnace") {
+        std::string_view model{"lambert"};
+        double rho = 1.0;
+        bool image = true;
+        for (int i = 2; i < argc; ++i) {
+            const std::string_view arg{argv[i]};
+            if (arg == "--bsdf" && i + 1 < argc) model = argv[++i];
+            else if (arg == "--rho" && i + 1 < argc) rho = std::atof(argv[++i]);
+            else if (arg == "--no-image") image = false;
+        }
+        return app::furnace(model, rho, image);
+    }
 
     if (command == "spectrum") {
         return app::spectrum(argc > 2 ? std::string_view{argv[2]} : std::string_view{"d65"});

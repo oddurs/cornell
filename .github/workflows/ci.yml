@@ -88,6 +88,11 @@ jobs:
           # build only failed because `set -e` caught the second run.
           ./cornell verify
 
+          # And the furnace, which is a pass/fail with an exit code. No image:
+          # a runner has nobody to show it to, and writing one is the only
+          # part of this instrument that touches a disk.
+          ./cornell furnace --no-image
+
           # `make strict` arrives with the Makefile item; until then there is
           # no target to call.
           if grep -q '^strict:' Makefile; then
