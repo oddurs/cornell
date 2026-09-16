@@ -92,14 +92,13 @@ A spectrum is a function of wavelength and a monitor has three primaries, and th
 
 ## v0.4 — The box, as measured
 
-`###·······` 27% · 3 of 11 done
+`####······` 36% · 4 of 11 done
 
 The scene arrives, and it is not a scene. It is a plywood box built at Cornell, painted, lit, and photographed with a calibrated radiometer, published with the spectral reflectance of every wall so that a renderer has something to be right about.
 
 ### backlog
 
 - [ ] [`0052`](https://github.com/oddurs/cornell/blob/main/cairn/items/0052-cornell-hpp-the-box-as-a-constexpr-specification.md) cornell.hpp: the box as a constexpr specification <sup>optics · p0 · scene · thesis</sup>
-- [ ] [`0055`](https://github.com/oddurs/cornell/blob/main/cairn/items/0055-triangle-intersection-choose-the-algorithm-deliberately.md) Triangle intersection: choose the algorithm deliberately <sup>spike · p2 · geometry</sup>
 - [ ] [`0056`](https://github.com/oddurs/cornell/blob/main/cairn/items/0056-triangle-and-the-mesh-that-holds-them.md) Triangle, and the mesh that holds them <sup>optics · p0 · geometry</sup>
 - [ ] [`0057`](https://github.com/oddurs/cornell/blob/main/cairn/items/0057-the-bvh-a-binned-sah-build-and-the-one-file-about-speed.md) The BVH: a binned SAH build, and the one file about speed <sup>optics · p0 · accel</sup>
 - [ ] [`0058`](https://github.com/oddurs/cornell/blob/main/cairn/items/0058-verify-the-bvh-agrees-with-brute-force-on-a-million-random-rays.md) Verify: the BVH agrees with brute force on a million random rays <sup>verify · p0 · verification</sup>
@@ -112,6 +111,7 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 - [x] [`0051`](https://github.com/oddurs/cornell/blob/main/cairn/items/0051-find-out-exactly-what-cornell-published-and-what-units-it-is-in.md) Find out exactly what Cornell published, and what units it is in <sup>spike · p0 · scene · thesis</sup>
 - [x] [`0053`](https://github.com/oddurs/cornell/blob/main/cairn/items/0053-the-measured-spectral-reflectances-of-the-walls.md) The measured spectral reflectances of the walls <sup>optics · p0 · scene · thesis</sup>
 - [x] [`0054`](https://github.com/oddurs/cornell/blob/main/cairn/items/0054-the-light-s-emission-spectrum-and-its-measured-geometry.md) The light's emission spectrum, and its measured geometry <sup>optics · p0 · scene</sup>
+- [x] [`0055`](https://github.com/oddurs/cornell/blob/main/cairn/items/0055-triangle-intersection-choose-the-algorithm-deliberately.md) Triangle intersection: choose the algorithm deliberately <sup>spike · p2 · geometry</sup>
 
 ## v0.5 — It has to be right
 
