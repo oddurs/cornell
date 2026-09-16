@@ -175,6 +175,10 @@ public:
 
     std::size_t node_count() const { return bvh_.nodes().size(); }
 
+    // The tree itself, for `./cornell verify`, which has to be able to ask
+    // whether every primitive is still reachable through it.
+    const std::vector<BvhNode>& nodes() const { return bvh_.nodes(); }
+
     // Build the index. Call it once, after the last `add`.
     //
     // Separate from `add` rather than incremental, because a BVH built as

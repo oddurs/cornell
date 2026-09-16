@@ -48,8 +48,17 @@
 // the right child needs an index. That removes a pointer, removes the
 // allocation per node, and puts siblings near each other in memory.
 //
-// Six floats of bounds, an offset, a count and an axis: 32 bytes, half a cache
-// line, two nodes per line.
+// Six floats of bounds, an offset, and one word carrying both the primitive
+// count and the split axis: 32 bytes, half a cache line, two nodes per line.
+//
+// The count and the axis share a word because they have to. They were a
+// `uint16` each, which is ample axis and is *not* ample count: a leaf holding
+// 65 536 primitives wrapped to zero, zero means "inner node", and the
+// traversal then read the offset as a child index. Measured before it was
+// fixed — 70 008 coincident primitives built a tree reaching 4 472 of them
+// and losing 65 536, silently, with a correct-looking image, which is the
+// same failure mode as the `grow` bug below. Thirty bits of count and two of
+// axis costs nothing and cannot do that.
 //
 // `float` bounds in a `double` renderer is the one place this project
 // deliberately loses precision, and it is safe only because of what a bound is
@@ -182,12 +191,42 @@ struct Bounds {
 struct BvhNode {
     float low[3]{};
     float high[3]{};
-    std::uint32_t offset = 0;   // leaf: first primitive; inner: the right child
-    std::uint16_t count = 0;    // 0 means this is an inner node
-    std::uint16_t axis = 0;
+    std::uint32_t offset = 0;      // leaf: first primitive; inner: right child
+    std::uint32_t packed = 0;      // count in the top 30 bits, axis in the low 2
+
+    static constexpr std::uint32_t max_count = (1u << 30) - 1;
+
+    constexpr std::uint32_t count() const { return packed >> 2; }
+    constexpr std::uint32_t axis()  const { return packed & 3u; }
+    constexpr bool leaf()           const { return count() > 0; }
+
+    constexpr void set(std::uint32_t primitives, std::uint32_t split_axis) {
+        packed = (primitives << 2) | (split_axis & 3u);
+    }
 };
 
 static_assert(sizeof(BvhNode) == 32, "a node must be half a cache line");
+
+// The packing round-trips at sizes a `uint16` could not hold, which is the
+// whole point of it. Checked by the compiler because the failure it replaces
+// needed seventy thousand primitives to show up at runtime.
+static_assert([] {
+    BvhNode n;
+    n.set(70000, 2);
+    return n.count() == 70000 && n.axis() == 2 && n.leaf();
+}(), "a leaf must be able to hold more primitives than a uint16");
+
+static_assert([] {
+    BvhNode n;
+    n.set(BvhNode::max_count, 3);
+    return n.count() == BvhNode::max_count && n.axis() == 3;
+}(), "the packing must reach its own stated maximum");
+
+static_assert([] {
+    BvhNode n;
+    n.set(0, 1);
+    return !n.leaf() && n.axis() == 1;
+}(), "a count of zero must still mean an inner node");
 
 namespace detail {
 
@@ -211,6 +250,19 @@ public:
     static constexpr int bins = 16;
     static constexpr std::size_t max_leaf = 4;
 
+    // The traversal stack is a fixed array, so the build must not produce a
+    // tree deeper than it can hold.
+    //
+    // This is not hypothetical. When the centroids are exponentially spaced
+    // every split peels one primitive off, so 998 of them at x = 2^i built a
+    // tree of depth 107 against a stack of 64 — a buffer overflow on the
+    // first traversal, on every worker thread at once, caught by
+    // AddressSanitizer and by nothing else. The Cornell box is depth 5, which
+    // is exactly why it survived.
+    static constexpr int max_depth = 60;
+    static constexpr int stack_size = 64;
+    static_assert(stack_size > max_depth, "the stack must hold the deepest path");
+
     // Build over a list of bounds, one per primitive. The caller keeps the
     // primitives; this returns the order to visit them in.
     void build(const std::vector<Bounds>& item_bounds) {
@@ -225,7 +277,7 @@ public:
         centroids_.resize(n);
         for (std::size_t i = 0; i < n; ++i) centroids_[i] = item_bounds[i].centre();
 
-        split(item_bounds, 0, n);
+        split(item_bounds, 0, n, 1);
     }
 
     const std::vector<BvhNode>& nodes() const { return nodes_; }
@@ -240,7 +292,7 @@ public:
         const Vec3 inverse{1.0 / ray.direction.x(), 1.0 / ray.direction.y(),
                            1.0 / ray.direction.z()};
 
-        std::uint32_t stack[64];
+        std::uint32_t stack[stack_size];
         int depth = 0;
         stack[depth++] = 0;
 
@@ -248,8 +300,8 @@ public:
             const BvhNode& node = nodes_[stack[--depth]];
             if (!hits_box(node, ray.origin, inverse, shortened.t_max)) continue;
 
-            if (node.count > 0) {
-                for (std::uint16_t i = 0; i < node.count; ++i)
+            if (node.leaf()) {
+                for (std::uint32_t i = 0; i < node.count(); ++i)
                     test(order_[node.offset + i]);
                 continue;
             }
@@ -259,7 +311,7 @@ public:
             // rejected by a t_max that has already shrunk.
             const std::uint32_t a = std::uint32_t(&node - nodes_.data()) + 1;
             const std::uint32_t b = node.offset;
-            const bool flip = component(ray.direction, node.axis) < 0.0;
+            const bool flip = component(ray.direction, int(node.axis())) < 0.0;
             stack[depth++] = flip ? a : b;
             stack[depth++] = flip ? b : a;
         }
@@ -292,7 +344,7 @@ private:
     }
 
     std::uint32_t split(const std::vector<Bounds>& item_bounds,
-                        std::size_t first, std::size_t count) {
+                        std::size_t first, std::size_t count, int depth) {
         const std::uint32_t index = std::uint32_t(nodes_.size());
         nodes_.push_back(BvhNode{});
 
@@ -303,20 +355,42 @@ private:
         }
         store(nodes_[index], node_bounds);
 
+        // A leaf, and the split taken when nothing better is available.
+        //
+        // The heuristic can decline for reasons that have nothing to do with
+        // the leaf being small: coincident centroids, a zero-width spread, or
+        // no candidate beating the parent. Making a leaf of whatever is left
+        // is then unbounded, which is how 65 536 primitives went missing. So
+        // past a size worth splitting, an arbitrary split by index is taken —
+        // a worse tree than the heuristic would build, and an enormously
+        // better one than a leaf of seventy thousand.
         const auto make_leaf = [&] {
             nodes_[index].offset = std::uint32_t(first);
-            nodes_[index].count = std::uint16_t(count);
+            nodes_[index].set(std::uint32_t(count), 0);
             return index;
         };
 
-        if (count <= max_leaf) return make_leaf();
+        const auto split_arbitrarily = [&] {
+            const std::size_t half = count / 2;
+            nodes_[index].set(0, 0);
+            split(item_bounds, first, half, depth + 1);
+            nodes_[index].offset = split(item_bounds, first + half, count - half, depth + 1);
+            return index;
+        };
+
+        // Stop here, unless stopping would overflow the count.
+        const auto stop = [&] {
+            return count > BvhNode::max_count ? split_arbitrarily() : make_leaf();
+        };
+
+        if (count <= max_leaf || depth >= max_depth) return stop();
 
         const Vec3 spread = centroid_bounds.extent();
         const int axis = spread.x > spread.y ? (spread.x > spread.z ? 0 : 2)
                                              : (spread.y > spread.z ? 1 : 2);
         const double low = component(centroid_bounds.low, axis);
         const double width = component(spread, axis);
-        if (width <= 0.0) return make_leaf();
+        if (width <= 0.0) return count > max_leaf ? split_arbitrarily() : stop();
 
         // Bin the centroids.
         Bounds bin_bounds[bins];
@@ -359,7 +433,8 @@ private:
 
         // Leaving it whole costs one traversal of every primitive.
         const double leaf_cost = node_bounds.half_area() * double(count);
-        if (best_split < 0 || best_cost >= leaf_cost) return make_leaf();
+        if (best_split < 0 || best_cost >= leaf_cost)
+            return count > max_leaf ? split_arbitrarily() : stop();
 
         const auto middle = std::partition(
             order_.begin() + std::ptrdiff_t(first),
@@ -372,12 +447,12 @@ private:
 
         const std::size_t left_size =
             std::size_t(middle - (order_.begin() + std::ptrdiff_t(first)));
-        if (left_size == 0 || left_size == count) return make_leaf();
+        if (left_size == 0 || left_size == count) return split_arbitrarily();
 
-        nodes_[index].axis = std::uint16_t(axis);
-        split(item_bounds, first, left_size);                       // left is index + 1
-        nodes_[index].offset = split(item_bounds, first + left_size, count - left_size);
-        nodes_[index].count = 0;
+        nodes_[index].set(0, std::uint32_t(axis));
+        split(item_bounds, first, left_size, depth + 1);        // left is index + 1
+        nodes_[index].offset =
+            split(item_bounds, first + left_size, count - left_size, depth + 1);
         return index;
     }
 

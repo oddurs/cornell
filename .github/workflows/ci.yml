@@ -79,9 +79,14 @@ jobs:
           # The inspection sheet. It exits non-zero if any claim fails, so a
           # BVH that starts disagreeing with an exhaustive search cannot be
           # merged — which is the whole point of writing the check down.
-          if ./cornell verify >/dev/null 2>&1 || [ $? -ne 127 ]; then
-            ./cornell verify
-          fi
+          #
+          # Run once and let it fail the step. The first version of this was
+          # wrapped in `if ./cornell verify >/dev/null || [ $? -ne 127 ]`,
+          # which was meant to skip the check on a build that did not have it
+          # yet. An unknown subcommand exits 1 from the usage path and never
+          # 127, so the condition was always true, verify ran twice, and the
+          # build only failed because `set -e` caught the second run.
+          ./cornell verify
 
           # `make strict` arrives with the Makefile item; until then there is
           # no target to call.

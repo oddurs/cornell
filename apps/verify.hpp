@@ -36,6 +36,7 @@ namespace detail {
 struct Outcome {
     long compared = 0;
     long disagreed = 0;
+    long tied = 0;
     double worst_distance = 0.0;
 };
 
@@ -57,19 +58,31 @@ inline Outcome agrees_with_brute_force(const render::Scene& scene,
         if (fast.has_value() != slow.has_value()) { ++out.disagreed; continue; }
         if (!fast) continue;
 
-        // The distance, exactly, and the primitive it belongs to.
-        if (fast->t != slow->t || fast->surface != slow->surface) {
+        // The distance is the claim. It must be identical — not close.
+        if (fast->t != slow->t) {
             ++out.disagreed;
             out.worst_distance = std::fmax(out.worst_distance, std::fabs(fast->t - slow->t));
+            continue;
         }
+
+        // Which primitive, when two are at exactly the same distance, is not.
+        //
+        // Coincident geometry makes "the nearest" genuinely ambiguous, and
+        // the two routes visit primitives in different orders, so they are
+        // entitled to break the tie differently. Counted and reported rather
+        // than ignored: a tie is a fact about the scene, and a sudden change
+        // in how many there are would be worth looking at.
+        if (fast->surface != slow->surface) ++out.tied;
     }
     return out;
 }
 
 inline void report(const char* what, const Outcome& o) {
-    std::printf("  %-46s %9ld rays   %s\n", what, o.compared,
-                o.disagreed == 0 ? "agree"
-                                 : "DISAGREE");
+    std::printf("  %-46s %9ld rays   %s", what, o.compared,
+                o.disagreed == 0 ? "agree" : "DISAGREE");
+    if (o.tied != 0)
+        std::printf("   (%ld ties on coincident geometry)", o.tied);
+    std::printf("\n");
     if (o.disagreed != 0)
         std::printf("      %ld disagreements, worst distance %.3e\n",
                     o.disagreed, o.worst_distance);
@@ -87,6 +100,20 @@ inline int verify() {
 
     Scene scene = cornell::box();
     bool all_agree = true;
+
+    // Without this the headline check can be vacuous. `Scene::intersect`
+    // falls back to the exhaustive path for a tree of one node, so a scene
+    // whose heuristic declines to split would have this section comparing
+    // `intersect_exhaustively` against itself and printing "agree" — which is
+    // exactly what the header above says a check must never do.
+    if (scene.node_count() <= 1) {
+        std::printf("  the box built a tree of %zu node(s), so the comparison below\n"
+                    "  would be the exhaustive search against itself. Refusing.\n",
+                    scene.node_count());
+        return 1;
+    }
+    std::printf("  (the box builds %zu nodes, so the two routes really differ)\n\n",
+                scene.node_count());
 
     // 1. A million rays, origins inside and outside, directions anywhere.
     {
@@ -151,7 +178,65 @@ inline int verify() {
         all_agree = all_agree && o.disagreed == 0;
     }
 
-    // 4. Degenerate primitives. A zero-area triangle has no interior for a
+    // 4. A tree deep enough to overflow a fixed traversal stack.
+    //
+    //    Exponentially spaced centroids make every split peel off one
+    //    primitive, so the tree is a chain rather than a hierarchy. 998 of
+    //    them once built a tree of depth 107 against a stack of 64 — every
+    //    worker thread writing past the end of its own frame, producing
+    //    correct-looking images. The build caps depth now; this is the check
+    //    that it still does and that traversal still agrees.
+    {
+        Scene chain;
+        const Bsdf grey = GreyLambert{Flat{0.5}};
+        for (int i = 0; i < 998; ++i) {
+            const double x = std::ldexp(1.0e-3, i % 60);
+            chain.add(Surface{Triangle{Vec3{x, 0.0, 0.0},
+                                       Vec3{x * 1.001, 0.0, 0.0},
+                                       Vec3{x, 1.0e-3, 0.0}},
+                              grey, Flat{0.0}, 0.0});
+        }
+        chain.finalise();
+
+        Sampler rng{11, 11};
+        std::vector<Ray> rays;
+        for (long i = 0; i < 200000; ++i) {
+            const auto [u, v] = rng.next2();
+            const auto [w, q] = rng.next2();
+            const double z = 2.0 * q - 1.0;
+            const double r = std::sqrt(std::fmax(0.0, 1.0 - z * z));
+            rays.push_back(Ray{Vec3{u * 1.0e3, v * 1.0e-3, w * 1.0e-3 - 5.0e-4},
+                               normalize(Vec3{r * std::cos(si::two_pi * u),
+                                              r * std::sin(si::two_pi * u), z})});
+        }
+        const auto o = detail::agrees_with_brute_force(chain, rays);
+        detail::report("a tree built to be as deep as it can get", o);
+        all_agree = all_agree && o.disagreed == 0;
+    }
+
+    // 5. Primitives no split can separate. The heuristic declines, and what
+    //    it declines into must still reach every one of them.
+    {
+        Scene pile;
+        const Bsdf grey = GreyLambert{Flat{0.5}};
+        const Vec3 a = cornell::at(300.0, 200.0, 300.0);
+        for (int i = 0; i < 5000; ++i)
+            pile.add(Surface{Triangle{a, a + Vec3{0.02, 0, 0}, a + Vec3{0, 0.02, 0}},
+                             grey, Flat{0.0}, 0.0});
+        pile.finalise();
+
+        std::size_t reachable = 0;
+        for (const BvhNode& n : pile.nodes())
+            if (n.leaf()) reachable += n.count();
+
+        std::printf("  %-46s %9zu of %zu   %s\n",
+                    "every coincident primitive is still in the tree",
+                    reachable, pile.surfaces().size(),
+                    reachable == pile.surfaces().size() ? "reachable" : "LOST");
+        all_agree = all_agree && reachable == pile.surfaces().size();
+    }
+
+    // 6. Degenerate primitives. A zero-area triangle has no interior for a
     //    ray to hit, and both routes must say so — but a hierarchy also has
     //    to cope with its bounding box, which is a point or a line.
     {
