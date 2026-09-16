@@ -28,3 +28,8 @@ the residual.
 - [ ] Every item labelled `admission` in this backlog appears here or is
       explicitly retired
 - [ ] `cairn list --view honesty` is empty when this closes
+- [ ] The plywood being assumed Lambertian, which is item 0061's second
+      criterion. Oren-Nayar departs most from Lambert at grazing angles and
+      in corners, which is where the colour bleeding is and what the
+      comparison is measuring. Either the error is below the measurement
+      uncertainty — with a number — or this becomes an item
