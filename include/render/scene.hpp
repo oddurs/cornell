@@ -2,7 +2,7 @@
 //
 // It is deliberately small and deliberately temporary. v0.4 replaces most of
 // it: `cornell.hpp` will hold the box as a `constexpr` specification with the
-// dimensions Cornell published, and the BVH will replace the loop below. What
+// dimensions Cornell published, and the BVH replaced the loop below. What
 // survives is the shape of the thing — a flat list of surfaces, each with a
 // geometry, a BSDF and possibly an emission — and the two `variant`s.
 //
@@ -47,11 +47,11 @@
 //
 // ── What is not modelled ─────────────────────────────────────────────────
 //
-// Any acceleration at all. `intersect` tests every surface against every ray.
-// For the dozen triangles of a box that is faster than a tree would be, and
-// it is written as a plain loop so that v0.4's BVH has something obviously
-// correct to be checked against — item 0058 is exactly that comparison, a
-// million random rays against brute force.
+// Nothing, any more. This said "any acceleration at all" until v0.4 put a
+// BVH behind `intersect`, and the exhaustive loop it described is still here
+// as `intersect_exhaustively` — not as the implementation but as the thing
+// the implementation is checked against, which is item 0058 and which
+// `./cornell verify` runs on every build.
 //
 // Instancing, transforms, and therefore any object appearing twice. Every
 // surface carries its own world-space vertices.

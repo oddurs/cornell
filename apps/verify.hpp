@@ -278,7 +278,67 @@ inline int verify() {
     // Item 0035 wrote this criterion in v0.2 and could not satisfy it,
     // because there were no threads to count.
     {
-        std::printf("\nThe thread count changes the speed and not the answer.\n\n");
+        // ── Scale ────────────────────────────────────────────────────────────
+    //
+    // Radiance is invariant under a uniform scaling of a scene: every length
+    // in the transport cancels. So the same room, larger, must produce the
+    // same image — and if it does not, something in the ray-spawning has a
+    // length hidden in it, which is exactly what `waechter.hpp` claims it
+    // does not.
+    //
+    // The scale factors are powers of two, and that is the whole subtlety.
+    // Multiplying a coordinate by 1024 changes its exponent and leaves every
+    // mantissa bit alone, so the scaled room is *exactly* the original room,
+    // larger. Multiplying by 1000 is a rounding: 0.001 x 552.8 is not one
+    // thousandth of 552.8, it is the nearest double to it, so the scaled room
+    // is a very slightly different room and a pixel on a silhouette is
+    // entitled to land on the other side of an edge.
+    //
+    // Measured, before this was understood: at 0.001x, 105 of 4096 pixels
+    // differed — and at 1024x, 1/1024x, 65536x and 1/65536x, none did. Nine
+    // orders of magnitude, bit for bit. The transport has no length in it;
+    // powers of ten do.
+    //
+    // This was a table of prose in `render.hpp`, measured once on a scene
+    // that has since been deleted, and quoting a mean radiance the program
+    // had stopped printing. It is a check now.
+    {
+        std::printf("\nRadiance does not depend on how big the room is.\n\n");
+
+        RenderSettings tiny;
+        tiny.width = 64;
+        tiny.spp = 4;
+        const int height = height_for(tiny.width);
+
+        const auto film_at = [&](double scale) {
+            const Scene box = cornell::box(scale);
+            const Camera camera = Camera::look_at(cornell::at(278.0, 273.0, -800.0, scale),
+                                                  cornell::at(278.0, 273.0, 0.0, scale),
+                                                  Vec3{0.0, 1.0, 0.0},
+                                                  film_width, film_height, film_distance);
+            return expose(tiny, box, camera, height);
+        };
+
+        const Film reference = film_at(1.0);
+        for (const double scale : {1024.0, 1.0 / 1024.0, 65536.0, 1.0 / 65536.0}) {
+            const Film other = film_at(scale);
+            long differing = 0;
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < tiny.width; ++x) {
+                    const Xyz a = reference.mean_tristimulus(x, y);
+                    const Xyz b = other.mean_tristimulus(x, y);
+                    if (a.x != b.x || a.y != b.y || a.z != b.z) ++differing;
+                }
+            char label[64];
+            std::snprintf(label, sizeof label,
+                          "the same room at %gx, compared exactly", scale);
+            std::printf("  %-46s %9d pixels   %s\n", label, tiny.width * height,
+                        differing == 0 ? "agree" : "DISAGREE");
+            all_agree = all_agree && differing == 0;
+        }
+    }
+
+    std::printf("\nThe thread count changes the speed and not the answer.\n\n");
 
         RenderSettings small;
         small.width = 96;

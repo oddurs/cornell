@@ -113,41 +113,33 @@
 //
 // The noise falls as the inverse square root of the sample count, which is
 // the claim, so here it is checked rather than asserted. RMSE of a 160 × 160
-// render against an 8192-sample reference:
+// render of the box against an 8192-sample reference:
 //
 //      spp      RMSE       ratio to the row above
-//        16     1.19850      —
-//        64     0.67538      1.775
-//       256     0.29972      2.253
-//      1024     0.14068      2.130
+//        16     0.55733      —
+//        64     0.29074      1.917
+//       256     0.14059      2.068
+//      1024     0.06770      2.077
 //
 // Quadrupling the samples should halve the error, and the three ratios
 // bracket 2. A least-squares fit of log RMSE against log N gives a slope of
-// **−0.522** against a theoretical −0.5.
+// **−0.509** against a theoretical −0.5.
 //
-// The excess is at least partly the reference: 8192 samples is not
-// converged, so some of what is being measured as the error of the 1024-
-// sample image is the error of the thing it is being compared against. v0.5's
-// `converge` does this properly, over more decades and against a reference
-// that is either analytic or very much better converged, and fits the slope
-// with an uncertainty rather than quoting three digits from four points.
+// Some of the excess is the reference: 8192 samples is not converged, so part
+// of what is measured as the 1024-sample image's error is the error of the
+// thing it is compared against. v0.5's `converge` does this properly, over
+// more decades and against a reference that is either analytic or very much
+// better converged.
 //
-// ── The offset, at three scales ──────────────────────────────────────────
+// These figures were re-taken after the scene changed. The first version of
+// this table was measured on the grey test rig that `box.hpp` used to hold,
+// with a different camera, and it survived the switch to the measured box
+// unchanged for four commits — which is house rule 6's failure mode and was
+// caught by a code review rather than by the rule.
 //
-// Item 0038 claimed `waechter.hpp`'s offset has no length hidden in it, and
-// could only check the geometry. Now there is a renderer. Radiance is
-// invariant under a uniform scaling of a scene — every length in the
-// transport cancels — so the same room built a thousand times larger and a
-// thousand times smaller must produce the same picture:
-//
-//      scale     identical to 1×    mean radiance
-//      1×        bit for bit        0.410179
-//      1000×     bit for bit        0.410179
-//      0.001×    bit for bit        0.410179
-//
-// Not "within tolerance". Every pixel of all three is the same double. An
-// epsilon anywhere in the spawn logic would show up here as a difference of
-// six orders of magnitude in how much of each contact shadow survives.
+// The scale-invariance table that used to sit here has moved into
+// `./cornell verify`, where it runs on every build instead of being a
+// paragraph somebody has to trust.
 
 #pragma once
 
@@ -252,21 +244,23 @@ inline int height_for(int width) {
 // integrate against it. Cornell publishes four points at 100 nm; this is
 // where they are stretched over the 5 nm grid everything else lives on, and
 // the interpolation is CALIBRATED rather than measured — item 0051 says so.
-inline render::cie::Illuminant lamp_on_the_observers_grid() {
+inline render::cie::Illuminant lamp_on_the_observers_grid(bool tungsten) {
     render::cie::Illuminant lit;
-    for (std::size_t i = 0; i < render::cie::samples; ++i)
-        lit.table[i] = render::cornell::emission.at(
-                           render::cie::first + double(i) * render::cie::step)
-                     * render::cornell::light_radiance;
+    for (std::size_t i = 0; i < render::cie::samples; ++i) {
+        const double lambda = render::cie::first + double(i) * render::cie::step;
+        const double shape = tungsten ? render::cie::a.at(lambda)
+                                      : render::cornell::emission.at(lambda);
+        lit.table[i] = shape * render::cornell::light_radiance;
+    }
     return lit;
 }
 
-inline double lamp_normalisation() {
-    return render::cie::luminance_normalisation(lamp_on_the_observers_grid());
+inline double lamp_normalisation(bool tungsten) {
+    return render::cie::luminance_normalisation(lamp_on_the_observers_grid(tungsten));
 }
 
-inline render::Matrix3 lamp_adaptation() {
-    return render::bradford::adapt_to_d65(lamp_on_the_observers_grid());
+inline render::Matrix3 lamp_adaptation(bool tungsten) {
+    return render::bradford::adapt_to_d65(lamp_on_the_observers_grid(tungsten));
 }
 
 // The exposure, on top of that. A choice, not physics — see item 0046. The
@@ -351,7 +345,13 @@ inline render::Film expose(const RenderSettings& settings,
 inline int render(const RenderSettings& settings) {
     using namespace render;
 
-    const Scene scene = cornell::box();
+    // `--lamp a` swaps the box's measured tungsten spectrum for CIE
+    // illuminant A. That is no longer the measured box and the flag says so;
+    // it exists because `bradford.hpp` needs a light that is visibly not
+    // daylight in order to demonstrate anything.
+    const Scene scene = settings.tungsten
+        ? cornell::box(1.0, render::cie::a)
+        : cornell::box();
 
     // Cornell's camera, at Cornell's position, pointed the way Cornell
     // pointed it.
@@ -362,13 +362,14 @@ inline int render(const RenderSettings& settings) {
 
     const int height = height_for(settings.width);
 
-    const double normalisation = lamp_normalisation();
+    const double normalisation = lamp_normalisation(settings.tungsten);
 
     // The box's lamp is tungsten, so without adaptation the render is orange —
     // correctly, and for the reason bradford.hpp gives. Cornell's own
     // photographs were taken through narrow-band filters and calibrated, so
     // the comparison in v1.0 happens before this step, not after it.
-    const Matrix3 adaptation = settings.adapt ? lamp_adaptation() : identity3();
+    const Matrix3 adaptation =
+        settings.adapt ? lamp_adaptation(settings.tungsten) : identity3();
 
     const auto started = std::chrono::steady_clock::now();
     const Film film = expose(settings, scene, camera, height);
