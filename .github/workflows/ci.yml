@@ -99,6 +99,10 @@ jobs:
           # curve underneath it.
           ./cornell chi2
 
+          # And the convergence slope, which is the slowest of the three and
+          # the one that would catch a bias nothing else can see.
+          ./cornell converge
+
           # `make strict` arrives with the Makefile item; until then there is
           # no target to call.
           if grep -q '^strict:' Makefile; then

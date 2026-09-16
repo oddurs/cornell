@@ -176,6 +176,21 @@ struct RenderSettings {
     bool tungsten = false;               // light it with illuminant A instead
     bool adapt = true;                   // see bradford.hpp: also not physics
     int threads = 0;                     // 0 means ask the machine
+
+    // Where the roulette starts. `converge.hpp` turns it off by starting it
+    // past the depth limit, which is what off means; nothing else changes it.
+    int roulette_start = render::roulette_start_depth;
+
+    // Which samples to use, rather than how many.
+    //
+    // The sampler is addressed by `(pixel, sample)` rather than dispensed, so
+    // a 2048-sample render contains a 512-sample render inside it, sample for
+    // sample. That is the property v0.2 bought and it has a sharp edge:
+    // measuring a 512-sample image against a 2048-sample reference compares
+    // an estimate against a reference built partly from the same draws, and
+    // the errors are correlated rather than independent. `converge.hpp`
+    // moves the reference onto samples nothing else uses.
+    int sample_offset = 0;
 };
 
 // Sixteen pixels square. Small enough that a slow region does not become one
@@ -306,7 +321,7 @@ inline render::Film expose(const RenderSettings& settings,
                 for (int s = 0; s < settings.spp; ++s) {
                     // Addressed, not dispensed. This is the line that makes
                     // the thread count irrelevant to the answer.
-                    Sampler sampler{pixel, std::uint64_t(s)};
+                    Sampler sampler{pixel, std::uint64_t(settings.sample_offset + s)};
 
                     const auto [jitter_u, jitter_v] = sampler.next2();
                     const double u = (double(x) + jitter_u) / double(settings.width);
@@ -315,7 +330,8 @@ inline render::Film expose(const RenderSettings& settings,
                     const Wavelengths lambdas = Wavelengths::sample(sampler.next());
 
                     const Radiance carried =
-                        radiance(scene, camera.ray_through(u, v), lambdas, sampler);
+                        radiance(scene, camera.ray_through(u, v), lambdas, sampler,
+                                 default_max_depth, settings.roulette_start);
 
                     film.add_sample(x, y, lambdas, carried);
                 }

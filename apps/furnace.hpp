@@ -106,6 +106,7 @@
 #include <render/transport.hpp>
 #include <render/warp.hpp>
 
+#include "enclosure.hpp"
 #include "image.hpp"
 
 namespace app {
@@ -185,54 +186,17 @@ inline double directional_albedo_by_sampling(const Bsdf& bsdf, const Vec3& wo, i
 
 // ── 3. The furnace ───────────────────────────────────────────────────────
 
-// Two triangles, wound so that the normal comes out facing `inward`. The
-// enclosure's walls have to emit towards the camera, and emission is
-// one-sided.
-inline void add_wall(Scene& scene, const Vec3& a, const Vec3& b, const Vec3& c,
-                     const Vec3& d, const Vec3& inward) {
-    const Bsdf black{GreyLambert{Flat{0.0}}};
-    Triangle first{a, b, c};
-    Triangle second{a, c, d};
-    if (dot(first.geometric_normal(), inward) < 0.0) {
-        first  = Triangle{a, c, b};
-        second = Triangle{a, d, c};
-    }
-    scene.add(Surface{first,  black, Flat{1.0}, 1.0});
-    scene.add(Surface{second, black, Flat{1.0}, 1.0});
-}
-
-// A cube of emitting walls, and one sphere in the middle of it.
-//
-// The walls reflect nothing, which is what makes the enclosure a *uniform*
-// environment rather than a cavity: light that reaches a wall stops there, so
-// every wall carries exactly the radiance it emits and nothing accumulated
-// from the others. A cavity whose walls both emit and reflect is the other
-// test, it has a closed-form answer of `Le / (1 - rho)`, and `transport.hpp`
-// already measures it.
+// The scene is `enclosure.hpp`: walls that emit radiance 1 and reflect
+// nothing, which is a uniform environment of radiance 1 seen from inside, and
+// one sphere in the middle. It lives next door because `converge.hpp` needs
+// the same box with reflecting walls, and two copies of a cube is two places
+// for a winding order to be wrong in only one of them.
 //
 // The sphere is convex, so a path leaving it cannot hit it again: every path
 // in this scene is at most one bounce plus a wall. That is the correct scope
 // for the claim — the furnace asks whether *a* bounce conserves energy — and
 // it is why the depth limit and the roulette have nothing to do here.
-inline Scene make_furnace(double rho) {
-    Scene scene;
-
-    const double half = 10.0;
-    const Vec3 lo{-half, -half, -half};
-    const Vec3 hi{half, half, half};
-
-    add_wall(scene, {lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}, {hi.x, hi.y, lo.z}, {lo.x, hi.y, lo.z}, {0, 0, 1});
-    add_wall(scene, {lo.x, lo.y, hi.z}, {hi.x, lo.y, hi.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}, {0, 0, -1});
-    add_wall(scene, {lo.x, lo.y, lo.z}, {lo.x, hi.y, lo.z}, {lo.x, hi.y, hi.z}, {lo.x, lo.y, hi.z}, {1, 0, 0});
-    add_wall(scene, {hi.x, lo.y, lo.z}, {hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {hi.x, lo.y, hi.z}, {-1, 0, 0});
-    add_wall(scene, {lo.x, lo.y, lo.z}, {hi.x, lo.y, lo.z}, {hi.x, lo.y, hi.z}, {lo.x, lo.y, hi.z}, {0, 1, 0});
-    add_wall(scene, {lo.x, hi.y, lo.z}, {hi.x, hi.y, lo.z}, {hi.x, hi.y, hi.z}, {lo.x, hi.y, hi.z}, {0, -1, 0});
-
-    scene.add(Surface{Sphere{Vec3{0, 0, 0}, 1.0}, Bsdf{GreyLambert{Flat{rho}}}});
-
-    scene.finalise();
-    return scene;
-}
+inline Scene make_furnace(double rho) { return enclosure::uniform_environment(rho); }
 
 struct Residual {
     long pixels = 0;

@@ -196,7 +196,7 @@ cornell — a box in a lab, modelled from first principles, for no reason.
   spectrum  v0.3  built  any spectrum in the project, with its chromaticity
   furnace   v0.5  built  energy conservation, as a pass/fail you can see
   chi2      v0.5  built  that sample() and pdf() describe the same distribution
-  converge  v0.5         that RMSE falls as N^-1/2, or the estimator is biased
+  converge  v0.5  built  that RMSE falls as N^-1/2, or the estimator is biased
   verify    v0.4  built  every physical claim the project makes, in one run
   swatch    v0.6         the metals, rendered from nothing but citations
 ```
@@ -270,6 +270,44 @@ p = 0.04.
       1048576        5.740e-05    0.000e+00
       4194304        3.766e-15    0.000e+00
 ```
+
+### And what the convergence slope says
+
+Monte Carlo error falls as N^-½. Not as a rule of thumb — as the central limit
+theorem — and a renderer whose error falls *faster* is not clever, it is
+biased or it is being measured against its own bias.
+
+The first measurement uses no reference image at all. A closed cavity where
+every wall emits `Le` and reflects ρ has an isotropic interior satisfying
+`L = Le + ρL`, so the answer is `Le/(1-ρ)` exactly, before the renderer is
+asked:
+
+```
+$ ./cornell converge
+
+                       1         4        16        64       256      1024      slope
+   rho = 0.5     0.65074   0.27399   0.14873   0.07637   0.03698   0.01905    -0.5014
+   rho = 0.9     8.60623   4.37140   2.22045   1.11787   0.54870   0.28633    -0.4931
+```
+
+Switch the Russian roulette off and this scene stops being random altogether —
+cosine-sampling a Lambertian makes `f·cos/pdf` exactly ρ for every draw, so
+every path returns the identical geometric series. What is left is the depth
+limit cutting that series short, and it lands where the algebra says:
+
+```
+        rho     measured rmse      rho^256 / (1 - rho)
+       0.90        1.933e-11              1.932e-11
+```
+
+In the Cornell box, which has no closed form, the slope is **−0.5049 ± 0.0114**
+with roulette and **−0.5109 ± 0.0123** without. The error bar is measured
+rather than chosen: the errors have a kurtosis of twenty to a few hundred
+against a normal distribution's three, because a pixel's error is mostly a
+question of whether it caught a rare path that found the lamp and came back
+enormous. One firefly is enough to move an RMSE by a quarter. They are
+[item 0070](ROADMAP.md)'s subject, and until then the instrument pools four
+independent pairs and prints its own uncertainty.
 
 ---
 
