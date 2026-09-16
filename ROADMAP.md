@@ -116,19 +116,16 @@ The scene arrives, and it is not a scene. It is a plywood box built at Cornell, 
 
 ## v0.5 — It has to be right
 
-`#########·` 90% · 9 of 10 done
+`##########` 100% · 10 of 10 done
 
 The instruments of proof, built before the physics they will judge, because a check written after the thing it checks is a check written to pass.
-
-### backlog
-
-- [ ] [`0065`](https://github.com/oddurs/cornell/blob/main/cairn/items/0065-apps-verify-the-inspection-sheet.md) apps/verify: the inspection sheet <sup>instrument · p0 · instrument</sup>
 
 ### done
 
 - [x] [`0062`](https://github.com/oddurs/cornell/blob/main/cairn/items/0062-apps-furnace-the-white-furnace-test.md) apps/furnace: the white furnace test <sup>instrument · p0 · instrument · thesis</sup>
 - [x] [`0063`](https://github.com/oddurs/cornell/blob/main/cairn/items/0063-apps-chi2-catch-a-sampling-routine-lying-about-its-own-density.md) apps/chi2: catch a sampling routine lying about its own density <sup>instrument · p0 · instrument · thesis</sup>
 - [x] [`0064`](https://github.com/oddurs/cornell/blob/main/cairn/items/0064-apps-converge-the-slope-is-minus-one-half-or-the-estimator-is-biased.md) apps/converge: the slope is minus one half or the estimator is biased <sup>instrument · p0 · instrument</sup>
+- [x] [`0065`](https://github.com/oddurs/cornell/blob/main/cairn/items/0065-apps-verify-the-inspection-sheet.md) apps/verify: the inspection sheet <sup>instrument · p0 · instrument</sup>
 - [x] [`0066`](https://github.com/oddurs/cornell/blob/main/cairn/items/0066-verify-lambert-vanishes-in-the-furnace.md) Verify: Lambert vanishes in the furnace <sup>verify · p0 · verification</sup>
 - [x] [`0067`](https://github.com/oddurs/cornell/blob/main/cairn/items/0067-verify-every-pdf-in-the-project-integrates-to-one.md) Verify: every pdf in the project integrates to one <sup>verify · p0 · verification</sup>
 - [x] [`0068`](https://github.com/oddurs/cornell/blob/main/cairn/items/0068-verify-reciprocity-and-where-it-is-legitimately-violated.md) Verify: reciprocity, and where it is legitimately violated <sup>verify · p2 · verification · admission</sup>
@@ -214,7 +211,7 @@ Refraction, total internal reflection, absorption through a medium, and the payo
 
 ## v1.0 — Compared against the photograph
 
-`··········` 0% · 0 of 8 done
+`··········` 0% · 0 of 9 done
 
 The release, and the claim the whole thing was built to earn.
 
@@ -228,6 +225,7 @@ The release, and the claim the whole thing was built to earn.
 - [ ] [`0117`](https://github.com/oddurs/cornell/blob/main/cairn/items/0117-readme-the-final-argument-with-every-figure-re-checked.md) README: the final argument, with every figure re-checked <sup>prose · p0 · prose</sup>
 - [ ] [`0118`](https://github.com/oddurs/cornell/blob/main/cairn/items/0118-reconcile-every-quoted-figure-against-what-the-program-prints.md) Reconcile every quoted figure against what the program prints <sup>chore · p0 · prose</sup>
 - [ ] [`0119`](https://github.com/oddurs/cornell/blob/main/cairn/items/0119-tag-v1-0.md) Tag v1.0 <sup>chore · p2 · build</sup>
+- [ ] [`0158`](https://github.com/oddurs/cornell/blob/main/cairn/items/0158-the-colorchecker-when-its-spectra-can-be-cited.md) The ColorChecker, when its spectra can be cited <sup>verify · p2 · verification</sup>
 
 ## v1.1 — Between the surfaces
 
