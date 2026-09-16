@@ -79,7 +79,10 @@
 #include <array>
 #include <cstddef>
 #include <render/cie.hpp>
+#include <cmath>
 #include <render/si.hpp>
+#include <render/vec.hpp>
+#include <render/scene.hpp>
 #include <render/spectrum.hpp>
 
 namespace render::cornell {
@@ -281,6 +284,192 @@ constexpr double light_flux_for(double radiance) {
     return si::pi * radiance * light_area;
 }
 
+// ── The geometry ─────────────────────────────────────────────────────────
+//
+// MEASURED, in millimetres, from the physical box. The vertices below are
+// Cornell's, transcribed unchanged — including the three different widths
+// that a drawing would have made one.
+//
+//      floor, far edge     552.8       x at z = 0
+//      floor, near edge    549.6       x at z = 559.2
+//      ceiling             556.0
+//
+// That is not noise to be tidied away. The page says the surfaces are
+// therefore not perfectly perpendicular, and it is the difference between a
+// measurement and a specification. A renderer that squares the box up is
+// rendering a different object from the one in the photographs.
+//
+// The units are INFERRED: nothing on the page states them, and they are
+// millimetres because the camera block gives a focal length of 0.035 and a
+// position 800 away. See item 0051.
+//
+// Orientation, so that nothing downstream has to work it out: +y is up, the
+// opening is at z = 0 and the back wall at z = 559.2, and looking in from the
+// opening puts +x on the *left*. The wall Cornell calls "Left wall" is the
+// one at large x, and it is the red one — the naming is from the camera's
+// point of view and agrees with the geometry, which is a small reassurance
+// that somebody checked.
+
+namespace mm {
+
+// Everything below is in millimetres, converted once at the bottom.
+inline constexpr double height = 548.8;
+inline constexpr double depth  = 559.2;
+
+// Floor, counter-clockwise seen from inside the box.
+inline constexpr double floor_far  = 552.8;   // x at z = 0
+inline constexpr double floor_near = 549.6;   // x at z = depth
+inline constexpr double ceiling_x  = 556.0;
+
+// The lamp, which fills a hole in the ceiling rather than hanging below it.
+inline constexpr double light_x0 = 213.0, light_x1 = 343.0;
+inline constexpr double light_z0 = 227.0, light_z1 = 332.0;
+
+} // namespace mm
+
+// A point of the published geometry, in metres. The division rather than a
+// multiplication by 1e-3 is `si.hpp`'s rule about negative powers of ten.
+constexpr Vec3 at(double x, double y, double z) {
+    return Vec3{x / 1e3, y / 1e3, z / 1e3};
+}
+
+// ── What follows from it ─────────────────────────────────────────────────
+//
+// Nothing here is typed. Every quantity below is computed from the vertices
+// above, which is the difference between a specification and a data file:
+// a reader can check these against a paper, or against their own arithmetic,
+// and `./cornell spec` prints them.
+
+// The area of a planar quadrilateral, as two triangles. Correct for the
+// non-rectangular floor, which is why it is not width times depth.
+constexpr double quad_area(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d) {
+    const double first  = 0.5 * std::sqrt(length_squared(cross(b - a, c - a)));
+    const double second = 0.5 * std::sqrt(length_squared(cross(c - a, d - a)));
+    return first + second;
+}
+
+// The solid angle a rectangle subtends from a point on its axis, exactly.
+//
+//      Omega = 4 arctan( a b / (d sqrt(a^2 + b^2 + d^2)) )
+//
+// with a and b the half-extents and d the distance. Derived from integrating
+// the solid angle element over the rectangle; it is worth having in closed
+// form because `./cornell spec` checks the numerical integration against it,
+// and two routes to one number is the only kind of check this file can offer.
+constexpr double axial_solid_angle(double half_width, double half_depth, double distance) {
+    const double numerator = half_width * half_depth;
+    const double denominator =
+        distance * std::sqrt(half_width * half_width + half_depth * half_depth
+                             + distance * distance);
+    return 4.0 * std::atan(numerator / denominator);
+}
+
+// ── The scene ────────────────────────────────────────────────────────────
+//
+// CALIBRATED: the lamp's radiance. Cornell published the emission spectrum's
+// *shape* and said its scale is arbitrary, so the absolute level is this
+// project's choice and is marked as one. Everything else in the scene is
+// measured.
+//
+// It is chosen so that the floor lands near the middle of a display's range
+// under the exposure in `apps/render.hpp`, which is the same thing a
+// photographer does and is not a claim about the lamp.
+inline constexpr double light_radiance = 1.6;
+
+namespace detail {
+
+// Two triangles, wound so the normal comes out on the side asked for.
+inline void add_quad(Scene& scene, const Vec3& a, const Vec3& b, const Vec3& c,
+                     const Vec3& d, const Vec3& faces, const Bsdf& bsdf,
+                     const Emission& emission = Flat{0.0}, double radiance = 0.0) {
+    Triangle first{a, b, c};
+    Triangle second{a, c, d};
+    if (dot(first.geometric_normal(), faces) < 0.0) {
+        first = Triangle{a, c, b};
+        second = Triangle{a, d, c};
+    }
+    scene.add(Surface{first, bsdf, emission, radiance});
+    scene.add(Surface{second, bsdf, emission, radiance});
+}
+
+} // namespace detail
+
+// The box, as published.
+inline Scene box() {
+    using namespace mm;
+
+    Scene scene;
+    const Bsdf pale  = MeasuredLambert{white};
+    const Bsdf left  = MeasuredLambert{red};
+    const Bsdf right = MeasuredLambert{green};
+
+    // Floor, and note the two different far and near widths.
+    detail::add_quad(scene, at(floor_far, 0, 0), at(0, 0, 0),
+                     at(0, 0, depth), at(floor_near, 0, depth),
+                     Vec3{0, 1, 0}, pale);
+
+    // Back wall.
+    detail::add_quad(scene, at(floor_near, 0, depth), at(0, 0, depth),
+                     at(0, height, depth), at(ceiling_x, height, depth),
+                     Vec3{0, 0, -1}, pale);
+
+    // Right wall, green, at x = 0.
+    detail::add_quad(scene, at(0, 0, depth), at(0, 0, 0),
+                     at(0, height, 0), at(0, height, depth),
+                     Vec3{1, 0, 0}, right);
+
+    // Left wall, red, at large x.
+    detail::add_quad(scene, at(floor_far, 0, 0), at(floor_near, 0, depth),
+                     at(ceiling_x, height, depth), at(ceiling_x, height, 0),
+                     Vec3{-1, 0, 0}, left);
+
+    // The ceiling, with a hole in it.
+    //
+    // The lamp is exactly coplanar with the ceiling and the published data
+    // supplies a matching hole rather than expecting the two to be sorted out
+    // by tie-breaking. Four quads around it: the strips in front of and
+    // behind the lamp, and the two beside it.
+    const Vec3 down{0, -1, 0};
+    detail::add_quad(scene, at(0, height, 0), at(ceiling_x, height, 0),
+                     at(ceiling_x, height, light_z0), at(0, height, light_z0), down, pale);
+    detail::add_quad(scene, at(0, height, light_z1), at(ceiling_x, height, light_z1),
+                     at(ceiling_x, height, depth), at(0, height, depth), down, pale);
+    detail::add_quad(scene, at(0, height, light_z0), at(light_x0, height, light_z0),
+                     at(light_x0, height, light_z1), at(0, height, light_z1), down, pale);
+    detail::add_quad(scene, at(light_x1, height, light_z0), at(ceiling_x, height, light_z0),
+                     at(ceiling_x, height, light_z1), at(light_x1, height, light_z1), down, pale);
+
+    // The lamp, filling the hole.
+    detail::add_quad(scene, at(light_x0, height, light_z0), at(light_x1, height, light_z0),
+                     at(light_x1, height, light_z1), at(light_x0, height, light_z1),
+                     down, Bsdf{MeasuredLambert{white}}, emission, light_radiance);
+
+    // The two blocks, each a top and four sides, vertices exactly as
+    // published.
+    const Vec3 up{0, 1, 0};
+    detail::add_quad(scene, at(130,165,65), at(82,165,225), at(240,165,272), at(290,165,114), up, pale);
+    detail::add_quad(scene, at(290,0,114), at(290,165,114), at(240,165,272), at(240,0,272),
+                     Vec3{0.6, 0, -0.8}, pale);
+    detail::add_quad(scene, at(130,0,65), at(130,165,65), at(290,165,114), at(290,0,114),
+                     Vec3{0.3, 0, -0.95}, pale);
+    detail::add_quad(scene, at(82,0,225), at(82,165,225), at(130,165,65), at(130,0,65),
+                     Vec3{-0.95, 0, -0.3}, pale);
+    detail::add_quad(scene, at(240,0,272), at(240,165,272), at(82,165,225), at(82,0,225),
+                     Vec3{-0.3, 0, 0.95}, pale);
+
+    detail::add_quad(scene, at(423,330,247), at(265,330,296), at(314,330,456), at(472,330,406), up, pale);
+    detail::add_quad(scene, at(423,0,247), at(423,330,247), at(472,330,406), at(472,0,406),
+                     Vec3{0.85, 0, -0.5}, pale);
+    detail::add_quad(scene, at(472,0,406), at(472,330,406), at(314,330,456), at(314,0,456),
+                     Vec3{0.3, 0, 0.95}, pale);
+    detail::add_quad(scene, at(314,0,456), at(314,330,456), at(265,330,296), at(265,0,296),
+                     Vec3{-0.95, 0, 0.3}, pale);
+    detail::add_quad(scene, at(265,0,296), at(265,330,296), at(423,330,247), at(423,0,247),
+                     Vec3{-0.3, 0, -0.95}, pale);
+
+    return scene;
+}
+
 // ── Checked at compile time ──────────────────────────────────────────────
 //
 // House rule 5, and the transcription of 228 numbers is exactly the kind of
@@ -316,6 +505,13 @@ static_assert(red.highest() < 0.70, "the red wall reflects at most 0.657, not 1"
 static_assert(green.highest() < 0.50, "the green wall reflects at most 0.481, not 1");
 
 // ── The light ────────────────────────────────────────────────────────────
+
+// `scene.hpp` has to name this grid to close its variant. If the two ever
+// disagree, the walls are being rendered with somebody else's table.
+static_assert(reflectance_samples == measured_reflectance_samples,
+              "scene.hpp's measured-paint alternative must match Cornell's grid");
+static_assert(emission_samples == measured_emission_samples,
+              "scene.hpp's measured-emission alternative must match Cornell's grid");
 
 static_assert(emission.table[0] == 0.0,  "the UV filter puts 400 nm at zero");
 static_assert(emission.table[3] == 18.4, "700 nm is the brightest published point");

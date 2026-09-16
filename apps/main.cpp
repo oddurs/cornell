@@ -24,6 +24,7 @@
 #include <string_view>
 
 #include "render.hpp"
+#include "spec.hpp"
 #include "spectrum.hpp"
 
 namespace {
@@ -38,6 +39,7 @@ struct Witness {
 // In the order they arrive, which is the order a reader should meet them.
 constexpr Witness witnesses[] = {
     {"render",   "v0.1", "the image itself",                                        true },
+    {"spec",     "v0.4", "the box as a specification, everything derived",        true },
     {"spectrum", "v0.3", "any spectrum in the project, with its chromaticity",      true },
     {"furnace",  "v0.5", "energy conservation, as a pass/fail you can see",         false},
     {"chi2",     "v0.5", "that sample() and pdf() describe the same distribution",  false},
@@ -56,6 +58,7 @@ void print_witnesses() {
                     int(w.witnesses.size()), w.witnesses.data());
     std::printf("\n  ./cornell render [width] [--spp N]\n");
     std::printf("  ./cornell spectrum [d65|e|x|y|z|red-wall|green-wall|white-wall]\n");
+    std::printf("  ./cornell spec\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
@@ -89,6 +92,8 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string_view command{argv[1]};
+
+    if (command == "spec") return app::spec();
 
     if (command == "spectrum") {
         return app::spectrum(argc > 2 ? std::string_view{argv[2]} : std::string_view{"d65"});
