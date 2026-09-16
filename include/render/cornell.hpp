@@ -432,8 +432,8 @@ inline constexpr double light_z0 = 227.0, light_z1 = 332.0;
 
 // A point of the published geometry, in metres. The division rather than a
 // multiplication by 1e-3 is `si.hpp`'s rule about negative powers of ten.
-constexpr Vec3 at(double x, double y, double z) {
-    return Vec3{x / 1e3, y / 1e3, z / 1e3};
+constexpr Vec3 at(double x, double y, double z, double scale = 1.0) {
+    return Vec3{scale * x / 1e3, scale * y / 1e3, scale * z / 1e3};
 }
 
 // ── What follows from it ─────────────────────────────────────────────────
@@ -498,7 +498,18 @@ inline void add_quad(Scene& scene, const Vec3& a, const Vec3& b, const Vec3& c,
 } // namespace detail
 
 // The box, as published.
-inline Scene box() {
+//
+// `scale` multiplies every length. It exists for one check and is otherwise
+// 1: radiance is invariant under a uniform scaling of a scene, so the same
+// room a thousand times larger must render identically, and if it does not
+// then something in the spawn logic has a length hidden in it. `waechter.hpp`
+// claims it does not; `./cornell verify` is where that is tested.
+//
+// `lamp` replaces the measured emission spectrum. It exists for the other
+// check — `bradford.hpp` needs a light that is visibly not daylight to
+// demonstrate anything — and using it means this is no longer the measured
+// box, which `--lamp` says on the way past.
+inline Scene box(double scale = 1.0, const Emission& lamp = emission) {
     using namespace mm;
 
     Scene scene;
@@ -507,23 +518,23 @@ inline Scene box() {
     const Bsdf right = MeasuredLambert{green};
 
     // Floor, and note the two different far and near widths.
-    detail::add_quad(scene, at(floor_far, 0, 0), at(0, 0, 0),
-                     at(0, 0, depth), at(floor_near, 0, depth),
+    detail::add_quad(scene, at(floor_far, 0, 0, scale), at(0, 0, 0, scale),
+                     at(0, 0, depth, scale), at(floor_near, 0, depth, scale),
                      Vec3{0, 1, 0}, pale);
 
     // Back wall.
-    detail::add_quad(scene, at(floor_near, 0, depth), at(0, 0, depth),
-                     at(0, height, depth), at(ceiling_x, height, depth),
+    detail::add_quad(scene, at(floor_near, 0, depth, scale), at(0, 0, depth, scale),
+                     at(0, height, depth, scale), at(ceiling_x, height, depth, scale),
                      Vec3{0, 0, -1}, pale);
 
     // Right wall, green, at x = 0.
-    detail::add_quad(scene, at(0, 0, depth), at(0, 0, 0),
-                     at(0, height, 0), at(0, height, depth),
+    detail::add_quad(scene, at(0, 0, depth, scale), at(0, 0, 0, scale),
+                     at(0, height, 0, scale), at(0, height, depth, scale),
                      Vec3{1, 0, 0}, right);
 
     // Left wall, red, at large x.
-    detail::add_quad(scene, at(floor_far, 0, 0), at(floor_near, 0, depth),
-                     at(ceiling_x, height, depth), at(ceiling_x, height, 0),
+    detail::add_quad(scene, at(floor_far, 0, 0, scale), at(floor_near, 0, depth, scale),
+                     at(ceiling_x, height, depth, scale), at(ceiling_x, height, 0, scale),
                      Vec3{-1, 0, 0}, left);
 
     // The ceiling, with a hole in it.
@@ -533,41 +544,41 @@ inline Scene box() {
     // by tie-breaking. Four quads around it: the strips in front of and
     // behind the lamp, and the two beside it.
     const Vec3 down{0, -1, 0};
-    detail::add_quad(scene, at(0, height, 0), at(ceiling_x, height, 0),
-                     at(ceiling_x, height, light_z0), at(0, height, light_z0), down, pale);
-    detail::add_quad(scene, at(0, height, light_z1), at(ceiling_x, height, light_z1),
-                     at(ceiling_x, height, depth), at(0, height, depth), down, pale);
-    detail::add_quad(scene, at(0, height, light_z0), at(light_x0, height, light_z0),
-                     at(light_x0, height, light_z1), at(0, height, light_z1), down, pale);
-    detail::add_quad(scene, at(light_x1, height, light_z0), at(ceiling_x, height, light_z0),
-                     at(ceiling_x, height, light_z1), at(light_x1, height, light_z1), down, pale);
+    detail::add_quad(scene, at(0, height, 0, scale), at(ceiling_x, height, 0, scale),
+                     at(ceiling_x, height, light_z0, scale), at(0, height, light_z0, scale), down, pale);
+    detail::add_quad(scene, at(0, height, light_z1, scale), at(ceiling_x, height, light_z1, scale),
+                     at(ceiling_x, height, depth, scale), at(0, height, depth, scale), down, pale);
+    detail::add_quad(scene, at(0, height, light_z0, scale), at(light_x0, height, light_z0, scale),
+                     at(light_x0, height, light_z1, scale), at(0, height, light_z1, scale), down, pale);
+    detail::add_quad(scene, at(light_x1, height, light_z0, scale), at(ceiling_x, height, light_z0, scale),
+                     at(ceiling_x, height, light_z1, scale), at(light_x1, height, light_z1, scale), down, pale);
 
     // The lamp, filling the hole.
-    detail::add_quad(scene, at(light_x0, height, light_z0), at(light_x1, height, light_z0),
-                     at(light_x1, height, light_z1), at(light_x0, height, light_z1),
-                     down, Bsdf{MeasuredLambert{white}}, emission, light_radiance);
+    detail::add_quad(scene, at(light_x0, height, light_z0, scale), at(light_x1, height, light_z0, scale),
+                     at(light_x1, height, light_z1, scale), at(light_x0, height, light_z1, scale),
+                     down, Bsdf{MeasuredLambert{white}}, lamp, light_radiance);
 
     // The two blocks, each a top and four sides, vertices exactly as
     // published.
     const Vec3 up{0, 1, 0};
-    detail::add_quad(scene, at(130,165,65), at(82,165,225), at(240,165,272), at(290,165,114), up, pale);
-    detail::add_quad(scene, at(290,0,114), at(290,165,114), at(240,165,272), at(240,0,272),
-                     Vec3{0.6, 0, -0.8}, pale);
-    detail::add_quad(scene, at(130,0,65), at(130,165,65), at(290,165,114), at(290,0,114),
+    detail::add_quad(scene, at(130,165,65, scale), at(82,165,225, scale), at(240,165,272, scale), at(290,165,114, scale), up, pale);
+    detail::add_quad(scene, at(290,0,114, scale), at(290,165,114, scale), at(240,165,272, scale), at(240,0,272, scale),
+                     Vec3{0.95, 0, 0.3}, pale);
+    detail::add_quad(scene, at(130,0,65, scale), at(130,165,65, scale), at(290,165,114, scale), at(290,0,114, scale),
                      Vec3{0.3, 0, -0.95}, pale);
-    detail::add_quad(scene, at(82,0,225), at(82,165,225), at(130,165,65), at(130,0,65),
+    detail::add_quad(scene, at(82,0,225, scale), at(82,165,225, scale), at(130,165,65, scale), at(130,0,65, scale),
                      Vec3{-0.95, 0, -0.3}, pale);
-    detail::add_quad(scene, at(240,0,272), at(240,165,272), at(82,165,225), at(82,0,225),
+    detail::add_quad(scene, at(240,0,272, scale), at(240,165,272, scale), at(82,165,225, scale), at(82,0,225, scale),
                      Vec3{-0.3, 0, 0.95}, pale);
 
-    detail::add_quad(scene, at(423,330,247), at(265,330,296), at(314,330,456), at(472,330,406), up, pale);
-    detail::add_quad(scene, at(423,0,247), at(423,330,247), at(472,330,406), at(472,0,406),
+    detail::add_quad(scene, at(423,330,247, scale), at(265,330,296, scale), at(314,330,456, scale), at(472,330,406, scale), up, pale);
+    detail::add_quad(scene, at(423,0,247, scale), at(423,330,247, scale), at(472,330,406, scale), at(472,0,406, scale),
                      Vec3{0.85, 0, -0.5}, pale);
-    detail::add_quad(scene, at(472,0,406), at(472,330,406), at(314,330,456), at(314,0,456),
+    detail::add_quad(scene, at(472,0,406, scale), at(472,330,406, scale), at(314,330,456, scale), at(314,0,456, scale),
                      Vec3{0.3, 0, 0.95}, pale);
-    detail::add_quad(scene, at(314,0,456), at(314,330,456), at(265,330,296), at(265,0,296),
+    detail::add_quad(scene, at(314,0,456, scale), at(314,330,456, scale), at(265,330,296, scale), at(265,0,296, scale),
                      Vec3{-0.95, 0, 0.3}, pale);
-    detail::add_quad(scene, at(265,0,296), at(265,330,296), at(423,330,247), at(423,0,247),
+    detail::add_quad(scene, at(265,0,296, scale), at(265,330,296, scale), at(423,330,247, scale), at(423,0,247, scale),
                      Vec3{-0.3, 0, -0.95}, pale);
 
     scene.finalise();

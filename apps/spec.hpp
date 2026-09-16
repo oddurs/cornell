@@ -66,7 +66,9 @@ inline int spec() {
     std::printf("  the two side walls differ by %.2e m2, which is the measurement\n\n",
                 std::fabs(left_area - right_area));
 
-    // The lamp, from the centre of the floor.
+    // The lamp, from the point on the floor directly beneath its centre —
+    // which is not quite the centre of the floor, and the closed form below
+    // is only exact on the axis, so the two have to be the same point.
     const double lamp_cx = 0.5 * (mm::light_x0 + mm::light_x1) / 1e3;
     const double lamp_cz = 0.5 * (mm::light_z0 + mm::light_z1) / 1e3;
     const double half_x = 0.5 * (mm::light_x1 - mm::light_x0) / 1e3;
