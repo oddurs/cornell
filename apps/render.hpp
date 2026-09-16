@@ -45,10 +45,16 @@
 //
 // ── What the image is of ─────────────────────────────────────────────────
 //
-// `box.hpp`, which is not the Cornell box and says so at length: five grey
-// walls and a lamp, with placeholder dimensions and a placeholder albedo,
-// built so that the integrator has corners to be checked in. The measured
-// box is v0.4.
+// The Cornell box. Not a stand-in for it — `cornell.hpp` holds the geometry
+// Cornell measured off the physical object, the reflectance spectra they put
+// through a spectrometer, and the emission spectrum of the lamp, and the
+// camera below is at the position on the same page.
+//
+// `apps/box.hpp` held a test rig of five grey walls with round numbers, and
+// it is deleted rather than kept: it existed so the integrator had corners to
+// be checked in before there was a real scene, and there is one now. Its
+// argument for why its walls were grey — that a red wall is a spectrum and
+// nothing could evaluate one yet — is the argument this milestone answers.
 //
 // The things visible in it that nobody wrote any code for are the point:
 //
@@ -135,7 +141,8 @@
 #include <render/srgb.hpp>
 #include <render/transport.hpp>
 
-#include "box.hpp"
+#include <render/cornell.hpp>
+
 #include "gamut.hpp"
 #include "image.hpp"
 #include "tonemap.hpp"
@@ -150,12 +157,18 @@ struct RenderSettings {
     bool adapt = true;                   // see bradford.hpp: also not physics
 };
 
-// The film: square, so that the image is square and the box is framed the way
-// it was photographed. `camera.hpp` derives the field of view from these
-// lengths and refuses to be told one directly.
-inline constexpr double film_width  = 0.024;    // 24 mm
-inline constexpr double film_height = 0.024;    // 24 mm
-inline constexpr double film_distance = 0.018;  // 18 mm, giving 67.4 degrees
+// The camera, MEASURED, from the same page as the box.
+//
+//      Position        278 273 -800      (millimetres)
+//      Direction       0 0 1
+//      Up direction    0 1 0
+//      Focal length    0.035
+//      Width, height   0.025 0.025
+//
+// A 35 mm lens on 25 mm square film, 800 mm in front of the opening, which
+// `camera.hpp` turns into a field of view of 2 atan(0.0125/0.035) = 39.3
+// degrees without being told one. The framing of every Cornell box image ever
+// published is these five lines.
 
 // The height is not a setting: it comes from the width and the shape of the
 // film, or the pixels are not square. v0.1 learned that by rendering an
@@ -166,6 +179,10 @@ inline constexpr double film_distance = 0.018;  // 18 mm, giving 67.4 degrees
 // and one that would have gone on returning the width if the film ever
 // stopped being square. Two named lengths now, so the expression means what
 // it reads as.
+inline constexpr double film_width  = 0.025;
+inline constexpr double film_height = 0.025;
+inline constexpr double film_distance = 0.035;
+
 inline int height_for(int width) {
     return int(double(width) * film_height / film_width + 0.5);
 }
@@ -191,10 +208,25 @@ inline int height_for(int width) {
 // a constant factor wrong with nobody noticing, because everything in the
 // image is wrong by the same factor. This one is computed from the scene's
 // own lamp, at compile time, and moves if the lamp does.
-inline double lamp_normalisation_for(const render::cie::Illuminant& lamp) {
-    render::cie::Illuminant lit = lamp;
-    for (std::size_t i = 0; i < render::cie::samples; ++i) lit.table[i] *= lamp_radiance;
-    return render::cie::luminance_normalisation(lit);
+// The lamp, resampled onto the observer's grid so that `cie.hpp` can
+// integrate against it. Cornell publishes four points at 100 nm; this is
+// where they are stretched over the 5 nm grid everything else lives on, and
+// the interpolation is CALIBRATED rather than measured — item 0051 says so.
+inline render::cie::Illuminant lamp_on_the_observers_grid() {
+    render::cie::Illuminant lit;
+    for (std::size_t i = 0; i < render::cie::samples; ++i)
+        lit.table[i] = render::cornell::emission.at(
+                           render::cie::first + double(i) * render::cie::step)
+                     * render::cornell::light_radiance;
+    return lit;
+}
+
+inline double lamp_normalisation() {
+    return render::cie::luminance_normalisation(lamp_on_the_observers_grid());
+}
+
+inline render::Matrix3 lamp_adaptation() {
+    return render::bradford::adapt_to_d65(lamp_on_the_observers_grid());
 }
 
 // The exposure, on top of that. A choice, not physics — see item 0046. The
@@ -206,26 +238,25 @@ inline constexpr double reference_luminance = 0.2;
 inline int render(const RenderSettings& settings) {
     using namespace render;
 
-    const render::cie::Illuminant& lamp =
-        settings.tungsten ? render::cie::a : render::cie::d65;
-
-    const Scene scene = box(1.0, lamp);
+    const Scene scene = cornell::box();
 
     // Chromatic adaptation, which is a model of an eye rather than of light.
     // With it off, a tungsten-lit render is orange — and that is the correct
     // radiometric answer, which is why it is switchable rather than baked in.
     // See bradford.hpp.
-    const double normalisation = lamp_normalisation_for(lamp);
+    const double normalisation = lamp_normalisation();
 
-    const Matrix3 adaptation = settings.adapt
-        ? render::bradford::adapt_to_d65(lamp)
-        : identity3();
+    // The box's lamp is tungsten, so without adaptation the render is orange —
+    // correctly, and for the reason bradford.hpp gives. Cornell's own
+    // photographs were taken through narrow-band filters and calibrated, so
+    // the comparison in v1.0 happens before this step, not after it.
+    const Matrix3 adaptation = settings.adapt ? lamp_adaptation() : identity3();
 
-    // Looking in through the missing front wall, from just outside it, which
-    // is where the camera stood in 1984.
-    const Camera camera = Camera::look_at(/* eye    */ Vec3{0.0, 1.0, 1.5},
-                                          /* target */ Vec3{0.0, 1.0, -1.0},
-                                          /* up     */ Vec3{0.0, 1.0, 0.0},
+    // Cornell's camera, at Cornell's position, pointed the way Cornell
+    // pointed it.
+    const Camera camera = Camera::look_at(cornell::at(278.0, 273.0, -800.0),
+                                          cornell::at(278.0, 273.0, 0.0),
+                                          Vec3{0.0, 1.0, 0.0},
                                           film_width, film_height, film_distance);
 
     const int height = height_for(settings.width);

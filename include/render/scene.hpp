@@ -89,16 +89,32 @@ using Shape = std::variant<Sphere, Triangle>;
 using GreyLambert = Lambert<Flat>;
 using SpectralLambert = Lambert<cie::Illuminant>;
 
-using Bsdf = std::variant<GreyLambert, SpectralLambert>;
+// The measured paint. 76 samples at 4 nm is Cornell's reflectance grid, and
+// naming it here rather than in `cornell.hpp` is the price `bsdf.hpp` agreed
+// to pay: a variant must name its alternatives, so the file that closes the
+// set has to know the concrete spectra even when they belong to somebody
+// else's data. `cornell.hpp` asserts that this number is still its own.
+inline constexpr std::size_t measured_reflectance_samples = 76;
+using MeasuredLambert = Lambert<Measured<measured_reflectance_samples>>;
+
+using Bsdf = std::variant<GreyLambert, SpectralLambert, MeasuredLambert>;
 
 static_assert(BsdfModel<GreyLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<SpectralLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<MeasuredLambert>,
+              "every alternative of Bsdf must satisfy the three-method contract");
 
 // What a surface emits. Same argument: an emitter is a spectrum and a scale,
 // because a lamp's colour and its brightness are different facts about it.
-using Emission = std::variant<Flat, cie::Illuminant>;
+//
+// Four samples at 100 nm is Cornell's published emission grid for the box's
+// lamp, and it is named here for the same reason the reflectance grid is.
+inline constexpr std::size_t measured_emission_samples = 4;
+using MeasuredEmission = Measured<measured_emission_samples>;
+
+using Emission = std::variant<Flat, cie::Illuminant, MeasuredEmission>;
 
 // ── Dispatch ─────────────────────────────────────────────────────────────
 // Free functions rather than members, so that a model is a plain struct that
@@ -150,6 +166,11 @@ struct Interaction {
 class Scene {
 public:
     void add(Surface surface) { surfaces_.push_back(std::move(surface)); }
+
+    // Removed as dead code by the first code review, and back because it has
+    // a caller: `./cornell spec` counts and measures the primitives, and
+    // v0.4's BVH builds over them. The review was right at the time.
+    const std::vector<Surface>& surfaces() const { return surfaces_; }
 
     // The nearest surface along the ray, if any.
     //
