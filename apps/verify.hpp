@@ -513,6 +513,132 @@ inline int verify() {
                     integrates ? "agree" : "DISAGREE", worst);
     }
 
+    // ── Every density integrates to one ──────────────────────────────────
+    //
+    // Item 0067. A density function that does not integrate to one is not a
+    // density function, and the image it produces is uniformly too bright or
+    // too dark by a constant factor — which is exactly the error that gets
+    // compensated for by turning the light down until it looks right, and
+    // then never found.
+    //
+    // It is the one thing `./cornell chi2` cannot see. Pearson's statistic
+    // compares an observed histogram against an expected one after both have
+    // been scaled by the number of draws, so a density that is uniformly half
+    // what it claims passes with a perfect p-value.
+    //
+    // Each is integrated over its own domain by a midpoint rule that does not
+    // call the sampling routine it belongs to. And the domains are not the
+    // same domain, which is the point `density.hpp` exists to make: two of
+    // the rows below are per steradian and one is per metre of wavelength,
+    // and nothing in this project may divide one into the other.
+    {
+        using namespace chi2_detail;
+
+        std::printf("\nEvery density in the project integrates to one over its own domain.\n\n");
+
+        // Over the sphere: dw = dmu dphi, so a midpoint grid in (mu, phi) is
+        // a plain double integral with no Jacobian left to get wrong.
+        const auto over_the_sphere = [](const auto& model, const Vec3& wo, int cells) {
+            const double mu_width = 2.0 / double(cells);
+            const double phi_width = si::two_pi / double(cells);
+            double total = 0.0;
+
+            for (int i = 0; i < cells; ++i) {
+                const double mu = -1.0 + mu_width * (double(i) + 0.5);
+                const double sin_theta = std::sqrt(std::fmax(0.0, 1.0 - mu * mu));
+                for (int j = 0; j < cells; ++j) {
+                    const double phi = phi_width * (double(j) + 0.5);
+                    const Vec3 wi{sin_theta * std::cos(phi), sin_theta * std::sin(phi), mu};
+                    total += model.pdf(wo, wi).per_steradian();
+                }
+            }
+            return total * mu_width * phi_width;
+        };
+
+        constexpr int cells = 1024;
+        const Vec3 wo{std::sin(0.6), 0.0, std::cos(0.6)};
+
+        const Bsdf grey{GreyLambert{Flat{0.5}}};
+        const Bsdf spectral{SpectralLambert{cie::d65}};
+        const Bsdf measured{MeasuredLambert{cornell::red}};
+
+        const std::pair<const char*, const Bsdf*> models[] = {
+            {"lambert, grey albedo",      &grey},
+            {"lambert, D65 as an albedo", &spectral},
+            {"lambert, Cornell's red",    &measured},
+        };
+
+        for (const auto& [name, bsdf] : models) {
+            const double total = over_the_sphere(Dispatch{*bsdf}, wo, cells);
+            const bool ok = std::fabs(total - 1.0) < 1e-12;
+            all_agree = all_agree && ok;
+
+            char label[64];
+            std::snprintf(label, sizeof label, "%s, over the sphere", name);
+            std::printf("  %-46s %9d cells    %s   %+.3e\n", label, cells * cells,
+                        ok ? "agree" : "DISAGREE", total - 1.0);
+        }
+
+        // The warp underneath them, asked directly rather than through a
+        // material. It is the same arithmetic and a different caller, and the
+        // day a second BSDF stops using it this row is what stays honest.
+        {
+            const double mu_width = 1.0 / double(cells);
+            const double phi_width = si::two_pi / double(cells);
+            double total = 0.0;
+            for (int i = 0; i < cells; ++i) {
+                const double mu = mu_width * (double(i) + 0.5);
+                for (int j = 0; j < cells; ++j)
+                    total += cosine_hemisphere_pdf(mu).per_steradian();
+            }
+            total *= mu_width * phi_width;
+
+            const bool ok = std::fabs(total - 1.0) < 1e-12;
+            all_agree = all_agree && ok;
+            std::printf("  %-46s %9d cells    %s   %+.3e\n",
+                        "warp.hpp's cosine hemisphere, over the hemisphere", cells * cells,
+                        ok ? "agree" : "DISAGREE", total - 1.0);
+        }
+
+        // And the one that is not a density over directions at all. The hero
+        // wavelength draw is uniform over the visible range and its density
+        // is per *metre*, which is why `density.hpp` makes the type say which
+        // — two densities in one program, both spelled `pdf`, differing by
+        // sr·m⁻¹.
+        {
+            const double width = (si::lambda_max - si::lambda_min) / double(cells);
+            double total = 0.0;
+            for (int i = 0; i < cells; ++i) total += Wavelengths::pdf();
+            total *= width;
+
+            const bool ok = std::fabs(total - 1.0) < 1e-12;
+            all_agree = all_agree && ok;
+            std::printf("  %-46s %9d cells    %s   %+.3e\n",
+                        "the hero wavelength draw, over 360-830 nm", cells,
+                        ok ? "agree" : "DISAGREE", total - 1.0);
+        }
+
+        // The calibration. An unnormalised density is the failure this
+        // section exists for, and it is invisible to every other check on
+        // this sheet: it conserves energy, it agrees with its own sampler,
+        // and it renders an image that is uniformly wrong.
+        {
+            const double total = over_the_sphere(HalfADensity{}, wo, cells);
+            const bool caught = std::fabs(total - 1.0) > 1e-3;
+            all_agree = all_agree && caught;
+            std::printf("  %-46s %9d cells    %s   %+.3e\n",
+                        "a density that is half of one, which must fail", cells * cells,
+                        caught ? "caught" : "ESCAPED", total - 1.0);
+        }
+
+        std::printf("\n  The residuals are summation rather than quadrature: every integrand\n"
+                    "  here is exactly integrated by a midpoint rule, so what is left is a\n"
+                    "  million doubles added end to end. The tolerance is 1e-12 and the\n"
+                    "  largest is 1.2e-13.\n"
+                    "\n  There is no light-sampling density yet, so there is no row for the\n"
+                    "  surface of a lamp. It arrives with v0.8, and so does this row.\n");
+    }
+
     std::printf("\n%s\n", all_agree
         ? "Every claim above holds."
         : "A CLAIM ABOVE DOES NOT HOLD.");
