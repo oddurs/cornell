@@ -300,7 +300,7 @@ A pinhole has no aberration because it has no glass. Every real camera is a stac
 
 ## later — Not modelled
 
-`··········` 0% · 0 of 6 done
+`··········` 0% · 0 of 5 done
 
 The frontier, kept as items rather than as silence, because house rule 7 says an unstated simplification is a lie and the honest place for the list is the roadmap.
 
@@ -311,5 +311,4 @@ The frontier, kept as items rather than as silence, because house rule 7 says an
 - [ ] [`0145`](https://github.com/oddurs/cornell/blob/main/cairn/items/0145-the-soap-film-we-cannot-render.md) The soap film we cannot render <sup>spike · p2 · bsdf · admission</sup>
 - [ ] [`0146`](https://github.com/oddurs/cornell/blob/main/cairn/items/0146-diffraction-and-the-limit-of-the-whole-model.md) Diffraction, and the limit of the whole model <sup>spike · p2 · transport · admission</sup>
 - [ ] [`0147`](https://github.com/oddurs/cornell/blob/main/cairn/items/0147-maintain-the-list-of-what-is-not-modelled.md) Maintain the list of what is not modelled <sup>prose · p2 · prose · admission</sup>
-- [ ] [`0159`](https://github.com/oddurs/cornell/blob/main/cairn/items/0159-polarisation-as-four-stokes-parameters.md) Polarisation, as four Stokes parameters and a Mueller matrix <sup>chore · p2 · transport</sup>
 

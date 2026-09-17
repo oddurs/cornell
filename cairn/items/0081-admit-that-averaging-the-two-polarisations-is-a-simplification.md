@@ -29,9 +29,11 @@ matrix at every interaction, and roughly four times the state on every path.
 - [x] Stated in fresnel.hpp, with both costs named
 - [x] An item exists under `later` for doing it properly
 
-Item 0159, with what it would take, what it would buy, and what it would not
-buy — which is the honest half: the box's light is unpolarised, its walls are
-matte, and the error at one bounce is exactly zero.
+Item **0143**, which already existed and was already under `later` — this item
+first filed a second one saying the same thing, which is the duplication the
+roadmap exists to prevent. 0143 now carries the measurement, and the honest
+half with it: the box's light is unpolarised, its walls are matte, and the
+error at one bounce is exactly zero.
 
 ## The size of it, which turned out to be exact
 
