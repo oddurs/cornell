@@ -351,6 +351,12 @@ struct NotReciprocal {
 // ── The test ─────────────────────────────────────────────────────────────
 
 struct Result {
+    // A delta lobe has no histogram to compare. `bsdf.hpp`'s convention says
+    // `pdf` returns zero for one, so the expected counts would all be zero
+    // and the statistic would be a division by it — and the honest answer is
+    // not a large chi-squared, it is that the question does not apply.
+    bool skipped_delta = false;
+
     double statistic = 0.0;
     int cells = 0;                  // after pooling
     int degrees_of_freedom = 0;
@@ -395,6 +401,17 @@ Result test(const Model& model, const Vec3& wo, int draws, std::uint64_t seed) {
         const auto [u, v] = sampler.next2();
 
         const BsdfSample drawn = model.sample(wo, lambdas, u, v);
+
+        // Found on the first draw rather than inferred from a bad p-value.
+        // A test that ran anyway would report p = 0 for a perfectly correct
+        // mirror, which is the worst kind of failing test: one that is right
+        // about there being a problem and wrong about what it is.
+        if (drawn.specular) {
+            out.skipped_delta = true;
+            out.p = 1.0;
+            return out;
+        }
+
         if (drawn.is_black()) continue;
 
         const int b = bin_of(drawn.wi);

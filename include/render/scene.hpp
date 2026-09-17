@@ -73,6 +73,7 @@
 #include <render/cie.hpp>
 #include <render/illuminant.hpp>
 #include <render/lambert.hpp>
+#include <render/specular.hpp>
 #include <render/ray.hpp>
 #include <render/sphere.hpp>
 #include <render/spectrum.hpp>
@@ -98,13 +99,23 @@ using SpectralLambert = Lambert<cie::Illuminant>;
 inline constexpr std::size_t measured_reflectance_samples = 76;
 using MeasuredLambert = Lambert<Measured<measured_reflectance_samples>>;
 
-using Bsdf = std::variant<GreyLambert, SpectralLambert, MeasuredLambert>;
+// A perfect mirror, which is in the set so that the delta convention has
+// something obeying it. `specular.hpp` says what makes one; `verify.hpp`
+// puts one in a furnace, which is the check that the convention is right —
+// a mirror of reflectance 1 has to vanish exactly like a Lambertian of
+// reflectance 1, and it will not if the estimator divided by a zero density
+// or forgot to divide at all.
+using GreySpecular = Specular<FlatReflectance>;
+
+using Bsdf = std::variant<GreyLambert, SpectralLambert, MeasuredLambert, GreySpecular>;
 
 static_assert(BsdfModel<GreyLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<SpectralLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<MeasuredLambert>,
+              "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<GreySpecular>,
               "every alternative of Bsdf must satisfy the three-method contract");
 
 // What a surface emits. Same argument: an emitter is a spectrum and a scale,

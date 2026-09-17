@@ -448,6 +448,19 @@ inline int verify() {
         std::printf("  %-46s %9d draws   %s   p = %.1e, %.1e\n",
                     "two deliberate liars, which must be caught", liar_draws * 2,
                     caught ? "caught" : "ESCAPED", flat, nearly);
+
+        // And the one it declines to test, which it has to say rather than
+        // quietly pass. A mirror's density is a delta; there is no histogram
+        // to compare it against, and a chi-squared that ran anyway would
+        // report p = 0 for a perfectly correct surface.
+        const Bsdf polished{GreySpecular{FlatReflectance{1.0}}};
+        const Result specular = test(Dispatch{polished}, up, draws, seed_liar);
+        const bool declined = specular.skipped_delta;
+        all_agree = all_agree && declined;
+
+        std::printf("  %-46s %9s        %s\n",
+                    "a mirror, whose density is a delta", "n/a",
+                    declined ? "skipped, and says so" : "TESTED ANYWAY");
     }
 
     // ── Lambert vanishes in the furnace ──────────────────────────────────
@@ -492,6 +505,38 @@ inline int verify() {
             std::snprintf(label, sizeof label,
                           rho == 1.0 ? "reflectance %.2f, which must leave nothing"
                                      : "reflectance %.2f, which must leave a disc", rho);
+            std::printf("  %-46s %9ld pixels   %s   |L-1| = %.3e\n",
+                        label, r.on_the_sphere, ok ? "agree" : "DISAGREE", r.worst);
+        }
+
+        // ── And a mirror, which is the same claim about a delta lobe ─────
+        //
+        // Item 0079. A perfect mirror of reflectance 1 has to vanish in the
+        // furnace exactly as a Lambertian of reflectance 1 does, and it will
+        // not if the estimator divided by the delta lobe's zero density, or
+        // forgot to divide at all, or took `f` instead of `weight`. Each of
+        // those makes the mirror too dark or too bright by a factor that
+        // looks like a choice somebody made about how shiny things should be.
+        //
+        // The convention it is testing is stated once in `bsdf.hpp` and obeyed
+        // in `transport.hpp`, `chi2.hpp` and, in v0.8, by Veach's weighting.
+        // This is the check that it is obeyed in the one place an error would
+        // be invisible.
+        for (const double reflectance : {1.0, 0.5, 0.25}) {
+            const Scene mirrored = enclosure::uniform_environment(
+                Bsdf{GreySpecular{FlatReflectance{reflectance}}});
+            const Residual r = measure(mirrored, furnace_camera, resolution, spp, picture);
+
+            const double expected = 1.0 - reflectance;
+            const bool ok = r.worst == expected && r.on_the_sphere > 0;
+            all_agree = all_agree && ok;
+
+            char label[72];
+            std::snprintf(label, sizeof label,
+                          reflectance == 1.0
+                              ? "a mirror of reflectance %.2f, which must leave nothing"
+                              : "a mirror of reflectance %.2f, which must leave a disc",
+                          reflectance);
             std::printf("  %-46s %9ld pixels   %s   |L-1| = %.3e\n",
                         label, r.on_the_sphere, ok ? "agree" : "DISAGREE", r.worst);
         }
@@ -648,6 +693,27 @@ inline int verify() {
                         "a density that is half of one, which must fail", cells * cells,
                         caught ? "caught" : "ESCAPED", total - 1.0);
         }
+
+        // The exception, which is now in the project and has to be named
+        // rather than left out of the loop above. A mirror's density is a
+        // delta: it integrates to 1 over its domain in the sense that matters
+        // and to *zero* over any quadrature, because the one direction it
+        // occupies has no width. The claim in this section's heading is about
+        // densities that are functions, and this is the one that is not.
+        {
+            const Bsdf polished{GreySpecular{FlatReflectance{1.0}}};
+            const double total = over_the_sphere(Dispatch{polished}, wo, cells);
+            const bool as_expected = total == 0.0;
+            all_agree = all_agree && as_expected;
+            std::printf("  %-46s %9d cells    %s   %+.3e\n",
+                        "a mirror, which integrates to nothing and should", cells * cells,
+                        as_expected ? "delta" : "NOT A DELTA", total);
+        }
+
+        std::printf("\n  The last row is not a failure. `bsdf.hpp`'s convention has a delta\n"
+                    "  lobe return zero from `pdf`, so a quadrature of it is zero — which\n"
+                    "  is the correct answer to the wrong question, and the reason the\n"
+                    "  convention returns zero rather than something plausible.\n");
 
         std::printf("\n  The residuals are summation rather than quadrature: every integrand\n"
                     "  here is exactly integrated by a midpoint rule, so what is left is a\n"

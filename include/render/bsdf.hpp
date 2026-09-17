@@ -139,13 +139,41 @@ namespace render {
 // one object, because a caller holding only the first has already lost.
 struct BsdfSample {
     Vec3 wi{};                  // local frame, pointing away from the surface
-    Brdf f{};                   // sr⁻¹
-    SolidAngleDensity pdf{};    // sr⁻¹, over the same directions
+    Brdf f{};                   // sr⁻¹; zero for a delta lobe
+    SolidAngleDensity pdf{};    // sr⁻¹, over the same directions; zero for one
+
+    // ── The delta convention ─────────────────────────────────────────────
+    //
+    // A mirror scatters in exactly one direction. Its density is a Dirac
+    // delta: infinite on a set of measure zero and zero everywhere else,
+    // which is not a function and cannot be returned as one. So `f` and `pdf`
+    // are both zero for such a lobe — the honest values, since the chance of
+    // asking about the one direction that matters is nil — and the estimator
+    // it would have formed is handed over already taken.
+    //
+    // `weight` is that estimator: the whole of `f · cos / pdf`, which for a
+    // delta lobe is a limit rather than a ratio. Two infinities cancel in it
+    // analytically, and what is left is dimensionless, which is why it is a
+    // `Reflectance` and `f` is a `Brdf`. The type says which of the two it is
+    // and nothing can confuse them.
+    //
+    // House rule 3 says the estimate is written out as the ratio at the point
+    // of use, and this is the one case where there is no ratio to write. So
+    // `transport.hpp` writes both branches side by side, the flag chooses
+    // between them, and the place where the division did not happen is
+    // visible rather than buried in a material.
+    //
+    // Getting this wrong makes a mirror too dark by the pdf, which looks
+    // exactly like an artistic choice.
+    Reflectance weight{};       // f · cos / pdf, already taken, for a delta lobe
+    bool specular = false;      // and whether that is what this is
 
     // A sample that carries no light. Returned rather than an empty optional
     // because "the surface absorbed it" is an outcome the path loop handles
     // the same way it handles everything else: multiply by zero and stop.
-    constexpr bool is_black() const { return !pdf.positive() || f.is_black(); }
+    constexpr bool is_black() const {
+        return specular ? weight.is_black() : (!pdf.positive() || f.is_black());
+    }
 };
 
 // The contract, as something the compiler checks.
@@ -161,6 +189,20 @@ concept BsdfModel = requires(const T& bsdf, Vec3 wo, Vec3 wi, double u,
     { bsdf.eval(wo, wi, lambdas) }     -> std::same_as<Brdf>;
     { bsdf.pdf(wo, wi) }               -> std::same_as<SolidAngleDensity>;
 };
+
+// Where the convention has to be obeyed, listed once so that a file adding a
+// delta lobe knows what it is signing up to:
+//
+//      `transport.hpp`  multiplies by `weight` instead of forming the ratio
+//      `chi2.hpp`       skips delta lobes, because a histogram of one
+//                       direction has nothing to compare against
+//      v0.8's MIS       must skip them too: a delta strategy cannot be
+//                       weighted against a finite one, and Veach's balance
+//                       heuristic divides by a sum that would be infinite
+//
+// `eval` and `pdf` returning zero is what makes the last two safe by default.
+// A caller that forgets the flag gets zero rather than a plausible number,
+// which is the failure that shows up rather than the one that does not.
 
 // `pdf` is the exception, and the asymmetry is worth a sentence. A density
 // over directions does not depend on wavelength: this project samples a
