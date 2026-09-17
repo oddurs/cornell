@@ -162,8 +162,8 @@
 // one number, a four-by-four Mueller matrix at every interaction instead of a
 // scalar multiply, and a rotation into each surface's plane of incidence on
 // the way in and out — roughly four times the state on every path and a
-// rewrite of every material. It is filed under `later` rather than pretended
-// about.
+// rewrite of every material. Item 0143 is where that is costed, under `later`,
+// with the measurement attached rather than a shrug.
 //
 // **Thin films.** A soap bubble, an anti-reflective coating and the colour on
 // an oil slick are interference between two boundaries a fraction of a

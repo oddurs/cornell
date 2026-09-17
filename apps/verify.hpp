@@ -1398,7 +1398,7 @@ inline int verify() {
                         "  percent of it. What it cannot produce is the *absence* of a\n"
                         "  reflection, and no factor corrects for that — it needs four\n"
                         "  Stokes parameters per wavelength and a Mueller matrix at every\n"
-                        "  interaction, which is item 0159 and is under `later`.\n");
+                        "  interaction, which is item 0143 and is under `later`.\n");
         }
 
         std::printf("\n  The last row is why the dielectric and the conductor are one\n"
