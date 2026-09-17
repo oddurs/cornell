@@ -99,14 +99,19 @@ inline void add_box(Scene& scene, double half, const Bsdf& bsdf,
 
 // ── The furnace: a uniform environment, and one object in it ─────────────
 
-inline Scene uniform_environment(double object_albedo, double radius = 1.0,
+inline Scene uniform_environment(const Bsdf& object, double radius = 1.0,
                                  double half = 10.0) {
     Scene scene;
     add_box(scene, half, Bsdf{GreyLambert{Flat{0.0}}}, Flat{1.0}, 1.0);
-    scene.add(Surface{Sphere{Vec3{0, 0, 0}, radius},
-                      Bsdf{GreyLambert{Flat{object_albedo}}}});
+    scene.add(Surface{Sphere{Vec3{0, 0, 0}, radius}, object});
     scene.finalise();
     return scene;
+}
+
+// The Lambertian case, which is what the furnace has always meant by it.
+inline Scene uniform_environment(double object_albedo, double radius = 1.0,
+                                 double half = 10.0) {
+    return uniform_environment(Bsdf{GreyLambert{Flat{object_albedo}}}, radius, half);
 }
 
 // ── The cavity: L = Le / (1 - rho), and nothing in it ────────────────────
