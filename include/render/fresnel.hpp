@@ -121,13 +121,49 @@
 //
 // ── What is not modelled, and the irony of the file ──────────────────────
 //
-// **Polarisation.** These equations are stated per polarisation state, and
-// this renderer carries scalar radiance, so it averages the two. That is
-// exactly right for unpolarised light arriving at a surface for the first
-// time and progressively wrong for light that has already reflected. Item
-// 0081 is where that is quantified and admitted at length; the short version
-// is that the averaging happens at the call site rather than in here, so this
-// file stays true and the approximation is visible where it is made.
+// **Polarisation**, and it is worth more than a sentence because the size of
+// it is known exactly.
+//
+// These equations are stated per polarisation state. This renderer carries
+// scalar radiance, so it averages the two — which is exactly right for
+// unpolarised light meeting a surface for the first time, and wrong
+// afterwards, because reflection *polarises* the light it reflects. The
+// averaging happens at the call site rather than in here, so this file stays
+// true and the approximation is visible where it is made.
+//
+// What it costs, computed rather than estimated. Unpolarised light, two
+// bounces off glass, tracking the two states through both and then averaging
+// once, against averaging after each:
+//
+//      first    second      tracked      averaged     ratio
+//       0.00      0.00     0.00160000   0.00160000    1.0000
+//      30.00     30.00     0.00198895   0.00172413    0.8669
+//      45.00     45.00     0.00426907   0.00252405    0.5912
+//      56.31     56.31     0.01094156   0.00547078    0.5000
+//      70.00     70.00     0.04578120   0.02925555    0.6390
+//      85.00     85.00     0.38981461   0.37552341    0.9633
+//
+// At two bounces at Brewster's angle the approximation returns **exactly
+// half** the right answer, and that 0.5000 is the worst case over the whole
+// grid of angle pairs. The reason is the thing Brewster's angle is: after one
+// bounce at 56.31 degrees the light is completely s-polarised, and a second
+// surface at the same angle reflects s strongly and p not at all — but the
+// model has forgotten the light is polarised, so it applies the average a
+// second time and loses the correlation.
+//
+// The same-plane case above is the *mild* one. Turn the second surface
+// ninety degrees and the tracked answer at two Brewster angles is **zero** —
+// two crossed polarisers, the oldest demonstration in optics — while the
+// averaged model still predicts 0.00547 of the light coming back. There the
+// relative error is not a factor of two, it is unbounded, and the thing this
+// renderer cannot produce is the *absence* of a reflection.
+//
+// What it would cost to fix: four Stokes parameters per wavelength instead of
+// one number, a four-by-four Mueller matrix at every interaction instead of a
+// scalar multiply, and a rotation into each surface's plane of incidence on
+// the way in and out — roughly four times the state on every path and a
+// rewrite of every material. It is filed under `later` rather than pretended
+// about.
 //
 // **Thin films.** A soap bubble, an anti-reflective coating and the colour on
 // an oil slick are interference between two boundaries a fraction of a

@@ -135,7 +135,7 @@ The instruments of proof, built before the physics they will judge, because a ch
 
 ## v0.6 — You never type a colour
 
-`####······` 40% · 4 of 10 done
+`#####·····` 50% · 5 of 10 done
 
 The thesis.
 
@@ -146,7 +146,6 @@ The thesis.
 - [ ] [`0075`](https://github.com/oddurs/cornell/blob/main/cairn/items/0075-aluminium-from-a-different-source-cited-differently.md) Aluminium, from a different source, cited differently <sup>optics · p2 · bsdf</sup>
 - [ ] [`0078`](https://github.com/oddurs/cornell/blob/main/cairn/items/0078-verify-gold-s-chromaticity-matches-published-measurement.md) Verify: gold's chromaticity matches published measurement <sup>verify · p0 · verification · thesis</sup>
 - [ ] [`0080`](https://github.com/oddurs/cornell/blob/main/cairn/items/0080-apps-swatch-the-metals-from-their-tables-alone.md) apps/swatch: the metals, from their tables alone <sup>instrument · p2 · instrument · thesis</sup>
-- [ ] [`0081`](https://github.com/oddurs/cornell/blob/main/cairn/items/0081-admit-that-averaging-the-two-polarisations-is-a-simplification.md) Admit that averaging the two polarisations is a simplification <sup>prose · p2 · prose · admission</sup>
 
 ### done
 
@@ -154,6 +153,7 @@ The thesis.
 - [x] [`0076`](https://github.com/oddurs/cornell/blob/main/cairn/items/0076-schlick-hpp-the-1994-fit-in-the-file-next-door.md) schlick.hpp: the 1994 fit, in the file next door <sup>optics · p2 · bsdf</sup>
 - [x] [`0077`](https://github.com/oddurs/cornell/blob/main/cairn/items/0077-verify-brewster-s-angle-falls-out-at-the-right-degree.md) Verify: Brewster's angle falls out at the right degree <sup>verify · p0 · verification · derivation</sup>
 - [x] [`0079`](https://github.com/oddurs/cornell/blob/main/cairn/items/0079-perfect-specular-reflection-and-the-delta-pdf-convention.md) Perfect specular reflection, and the delta pdf convention <sup>optics · p2 · bsdf</sup>
+- [x] [`0081`](https://github.com/oddurs/cornell/blob/main/cairn/items/0081-admit-that-averaging-the-two-polarisations-is-a-simplification.md) Admit that averaging the two polarisations is a simplification <sup>prose · p2 · prose · admission</sup>
 
 ## v0.7 — Roughness
 
@@ -300,7 +300,7 @@ A pinhole has no aberration because it has no glass. Every real camera is a stac
 
 ## later — Not modelled
 
-`··········` 0% · 0 of 5 done
+`··········` 0% · 0 of 6 done
 
 The frontier, kept as items rather than as silence, because house rule 7 says an unstated simplification is a lie and the honest place for the list is the roadmap.
 
@@ -311,4 +311,5 @@ The frontier, kept as items rather than as silence, because house rule 7 says an
 - [ ] [`0145`](https://github.com/oddurs/cornell/blob/main/cairn/items/0145-the-soap-film-we-cannot-render.md) The soap film we cannot render <sup>spike · p2 · bsdf · admission</sup>
 - [ ] [`0146`](https://github.com/oddurs/cornell/blob/main/cairn/items/0146-diffraction-and-the-limit-of-the-whole-model.md) Diffraction, and the limit of the whole model <sup>spike · p2 · transport · admission</sup>
 - [ ] [`0147`](https://github.com/oddurs/cornell/blob/main/cairn/items/0147-maintain-the-list-of-what-is-not-modelled.md) Maintain the list of what is not modelled <sup>prose · p2 · prose · admission</sup>
+- [ ] [`0159`](https://github.com/oddurs/cornell/blob/main/cairn/items/0159-polarisation-as-four-stokes-parameters.md) Polarisation, as four Stokes parameters and a Mueller matrix <sup>chore · p2 · transport</sup>
 

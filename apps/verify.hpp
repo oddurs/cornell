@@ -1329,6 +1329,78 @@ inline int verify() {
                         "    that shows depends on the index. There is no factor to apply.\n");
         }
 
+        // ── What averaging the two polarisations costs ───────────────────
+        //
+        // Item 0081. `fresnel.hpp` returns two reflectances and this renderer
+        // carries one number, so it averages them. That is exact for
+        // unpolarised light meeting a surface for the first time and wrong
+        // afterwards, because reflection polarises what it reflects.
+        //
+        // The size of the error is not an estimate. Two bounces, tracking the
+        // states through both and averaging once, against averaging after
+        // each — the difference is the correlation the model threw away.
+        {
+            std::printf("\n  What averaging the two polarisations costs. Unpolarised light,\n"
+                        "  two bounces off glass, same plane of incidence:\n\n"
+                        "    %8s %8s %13s %13s %8s\n",
+                        "first", "second", "tracked", "averaged", "ratio");
+
+            const Index glass{1.5, 0.0};
+            const auto at = [&](double degrees) {
+                return fresnel(std::cos(degrees * si::pi / 180.0), glass);
+            };
+
+            const double brewster = si::as::deg(brewster_angle(index_of_air, 1.5));
+            const double pairs[][2] = {{0.0, 0.0}, {45.0, 45.0}, {brewster, brewster},
+                                       {70.0, 70.0}, {85.0, 85.0}};
+
+            double worst_ratio = 1.0;
+            for (const auto& pair : pairs) {
+                const Reflected first = at(pair[0]);
+                const Reflected second = at(pair[1]);
+
+                const double tracked = 0.5 * (first.s * second.s + first.p * second.p);
+                const double averaged = first.unpolarised() * second.unpolarised();
+                const double ratio = averaged / tracked;
+                worst_ratio = std::fmin(worst_ratio, ratio);
+
+                std::printf("    %8.2f %8.2f %13.8f %13.8f %8.4f\n",
+                            pair[0], pair[1], tracked, averaged, ratio);
+            }
+
+            // Exactly a half at two Brewster bounces, and that is the worst
+            // it gets in this plane. Asserted, because it is a consequence of
+            // r_p being exactly zero there and not a measurement that could
+            // drift.
+            const bool exactly_half = std::fabs(worst_ratio - 0.5) < 1e-6;
+            all_agree = all_agree && exactly_half;
+            std::printf("\n  %-58s %9s        %s   %.6f\n",
+                        "the worst of those is exactly one half", "at Brewster",
+                        exactly_half ? "agree" : "DISAGREE", worst_ratio);
+
+            // And the crossed case, which is worse than a factor and is the
+            // reason this is filed rather than tolerated. Rotating the second
+            // surface ninety degrees swaps which state is which, so the
+            // tracked answer pairs s against p — and at two Brewster angles
+            // both p terms are zero.
+            const Reflected b = at(brewster);
+            const double crossed_tracked = 0.5 * (b.s * b.p + b.p * b.s);
+            const double crossed_averaged = b.unpolarised() * b.unpolarised();
+            const bool unbounded = crossed_tracked == 0.0 && crossed_averaged > 0.0;
+            all_agree = all_agree && unbounded;
+
+            std::printf("  %-58s %9s        %s   %.8f vs 0\n",
+                        "turn the second surface ninety degrees and it is unbounded",
+                        "crossed", unbounded ? "agree" : "DISAGREE", crossed_averaged);
+
+            std::printf("\n  Two crossed polarisers, the oldest demonstration in optics. The\n"
+                        "  truth is that nothing comes back; this renderer predicts half a\n"
+                        "  percent of it. What it cannot produce is the *absence* of a\n"
+                        "  reflection, and no factor corrects for that — it needs four\n"
+                        "  Stokes parameters per wavelength and a Mueller matrix at every\n"
+                        "  interaction, which is item 0159 and is under `later`.\n");
+        }
+
         std::printf("\n  The last row is why the dielectric and the conductor are one\n"
                     "  function here. Brewster's angle exists because `r_p` can reach\n"
                     "  zero; with a complex index it cannot, and nothing had to be\n"
