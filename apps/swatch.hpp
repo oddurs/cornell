@@ -80,6 +80,21 @@ Xyz tristimulus_of(const IndexSpectrum& index) {
     return total;
 }
 
+// A metal's colour, as three numbers scaled so that the brightest is 1.
+//
+// That is a hue and a saturation rather than an exposure — the exposure is the
+// image's job — and it is the form a reader can hold against the constant
+// every renderer types.
+struct Rgb { double r = 0.0, g = 0.0, b = 0.0; };
+
+template <class IndexSpectrum>
+Rgb normalised_rgb_of(const IndexSpectrum& index) {
+    const Xyz value = tristimulus_of(index);
+    const Xyz rgb = apply(srgb::xyz_to_rgb, value.x, value.y, value.z);
+    const double most = std::fmax(rgb.x, std::fmax(rgb.y, rgb.z));
+    return most > 0.0 ? Rgb{rgb.x / most, rgb.y / most, rgb.z / most} : Rgb{};
+}
+
 // Where the reflectance falls off a cliff, in electron volts.
 //
 // Scanned rather than looked up: the steepest fall of R against photon energy
@@ -116,10 +131,10 @@ inline Scene make_swatch() {
 
     const double spacing = 2.4;
     const Bsdf surfaces[] = {
-        Bsdf{NobleConductor{ConductorReflectance{metal::gold}}},
-        Bsdf{NobleConductor{ConductorReflectance{metal::copper}}},
-        Bsdf{NobleConductor{ConductorReflectance{metal::silver}}},
-        Bsdf{LightConductor{ConductorReflectance{metal::aluminium}}},
+        Bsdf{JohnsonChristyMetal{ConductorReflectance{metal::gold}}},
+        Bsdf{JohnsonChristyMetal{ConductorReflectance{metal::copper}}},
+        Bsdf{JohnsonChristyMetal{ConductorReflectance{metal::silver}}},
+        Bsdf{RakicMetal{ConductorReflectance{metal::aluminium}}},
         Bsdf{FlatConductor{ConductorReflectance{FlatIndex{Index{1.5, 0.0}}}}},
     };
 
@@ -154,21 +169,16 @@ inline int swatch(bool write_image) {
     const Chromaticity white = cie::check::d65_chromaticity;
 
     const auto row = [&](const char* name, const auto& index, bool neutral) {
-        const Xyz value = tristimulus_of(index);
-        const Chromaticity c = chromaticity_of(value);
+        const Chromaticity c = chromaticity_of(tristimulus_of(index));
         const auto [edge, slope] = reflectance_edge(index);
-
-        // Normalised so that the brightest channel is 1: this is a hue and a
-        // saturation, not an exposure, and the exposure is the image's job.
-        const Xyz rgb = apply(srgb::xyz_to_rgb, value.x, value.y, value.z);
-        const double most = std::fmax(rgb.x, std::fmax(rgb.y, rgb.z));
+        const Rgb rgb = normalised_rgb_of(index);
 
         const double from_white = std::hypot(c.x - white.x, c.y - white.y);
         const bool as_expected = neutral ? from_white < 0.01 : from_white > 0.03;
         if (!as_expected) ++failures;
 
         std::printf("  %-11s %9.5f %9.5f %9.4f %9.4f %9.4f %8.3f eV  %s\n",
-                    name, c.x, c.y, rgb.x / most, rgb.y / most, rgb.z / most,
+                    name, c.x, c.y, rgb.r, rgb.g, rgb.b,
                     edge, as_expected ? "" : "NOT AS DESCRIBED");
         (void)slope;
         return from_white;
@@ -206,11 +216,8 @@ inline int swatch(bool write_image) {
     // come from different places — one from a measurement and one from a
     // convention — and a reader can see how far apart they are.
     {
-        const Xyz value = tristimulus_of(metal::gold);
-        const Xyz rgb = apply(srgb::xyz_to_rgb, value.x, value.y, value.z);
-        const double most = std::fmax(rgb.x, std::fmax(rgb.y, rgb.z));
-
-        const double derived[3] = {rgb.x / most, rgb.y / most, rgb.z / most};
+        const Rgb gold = normalised_rgb_of(metal::gold);
+        const double derived[3] = {gold.r, gold.g, gold.b};
         constexpr double typed[3] = {1.0, 0.766, 0.336};
 
         std::printf("\n  Gold, against the constant every renderer types:\n\n"
@@ -223,6 +230,8 @@ inline int swatch(bool write_image) {
                                   derived[1] - typed[1],
                                   derived[2] - typed[2]);
 
+        const Rgb pink = normalised_rgb_of(metal::copper);
+
         std::printf("\n  Within a few hundredths, from a direction nobody aimed. The\n"
                     "  remaining difference is not error: the typed constant is somebody\n"
                     "  else's table, under somebody else's illuminant, normalised somebody\n"
@@ -231,15 +240,7 @@ inline int swatch(bool write_image) {
                     "\n  Which is the point. Swap gold's table for copper's and the same\n"
                     "  code returns %.4f %.4f %.4f instead, because of physics rather than\n"
                     "  because somebody typed pink.\n",
-                    [&]{ const Xyz v = tristimulus_of(metal::copper);
-                         const Xyz c = apply(srgb::xyz_to_rgb, v.x, v.y, v.z);
-                         return c.x / std::fmax(c.x, std::fmax(c.y, c.z)); }(),
-                    [&]{ const Xyz v = tristimulus_of(metal::copper);
-                         const Xyz c = apply(srgb::xyz_to_rgb, v.x, v.y, v.z);
-                         return c.y / std::fmax(c.x, std::fmax(c.y, c.z)); }(),
-                    [&]{ const Xyz v = tristimulus_of(metal::copper);
-                         const Xyz c = apply(srgb::xyz_to_rgb, v.x, v.y, v.z);
-                         return c.z / std::fmax(c.x, std::fmax(c.y, c.z)); }());
+                    pink.r, pink.g, pink.b);
     }
 
     if (write_image) {
