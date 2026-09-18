@@ -790,12 +790,15 @@ inline bool every_density_integrates_to_one() {
     // integral done numerically, by a rule that does not know what the
     // constant is supposed to be.
     //
-    // The second column is the point of the section as much as the first.
-    // `∫ D dm`, without the projection, is a different number entirely — 20
-    // at a tight lobe, 2 at the widest — and it is what a reader who assumed
-    // `D` was a density over solid angle would have been dividing by. That is
-    // the mistake `density.hpp` exists to make unspellable, and it is why
-    // `d()` returns a plain double rather than borrowing that file's type.
+    // The last column is the point of the section as much as the first. It
+    // is the same integral without the projection — what a reader who assumed
+    // `D` was a density over solid angle would have been dividing by — and it
+    // is 1.0095 at a tight lobe and exactly 2 at the widest. That is the
+    // shape of the mistake `density.hpp` exists to make unspellable: nearly
+    // invisible on a polished surface and a factor of two on a rough one,
+    // which is why `d()` returns a plain double rather than borrowing that
+    // file's type, and why the liar at the bottom of this section is built
+    // out of it.
 inline bool the_microfacet_distribution_covers_the_surface_it_models() {
     using namespace render;
     bool held = true;
@@ -812,7 +815,7 @@ inline bool the_microfacet_distribution_covers_the_surface_it_models() {
     // In theta rather than in cos(theta), which the neighbouring section
     // uses: a narrow lobe is narrow in angle, and a uniform grid in the
     // cosine puts almost no samples across it.
-    const auto over_the_hemisphere = [](const TrowbridgeReitz& d, bool projected, int cells) {
+    const auto over_the_hemisphere = [](const auto& d, bool projected, int cells) {
         const double theta_width = (si::pi / 2.0) / double(cells);
         const double phi_width = si::two_pi / double(cells);
         double total = 0.0;
@@ -883,36 +886,74 @@ inline bool the_microfacet_distribution_covers_the_surface_it_models() {
             Vec3{std::sin(1.5) * std::cos(2.0), std::sin(1.5) * std::sin(2.0), std::cos(1.5)},
         };
 
+        // The precondition, checked rather than assumed. The equality is
+        // exact only for a direction whose squared length is exactly 1.0,
+        // because that is what makes the shape exactly 1.0 and the division
+        // a division by one. Whether `sin` and `cos` hand back components
+        // with that property is a fact about libm's last ulp and not about
+        // this model, so a direction that misses it is held to a bare ulp
+        // instead of failing a build over somebody else's rounding.
         bool identical = true;
-        for (const Vec3& m : directions)
-            identical = identical && widest.d(m) == 1.0 / projected_hemisphere;
+        bool every_direction_is_exactly_unit = true;
+        for (const Vec3& m : directions) {
+            const double target = 1.0 / projected_hemisphere;
+            const double ulp = std::nextafter(target, 2.0) - target;
+            const bool unit = m.x * m.x + m.y * m.y + m.z * m.z == 1.0;
+
+            every_direction_is_exactly_unit = every_direction_is_exactly_unit && unit;
+            identical = identical &&
+                (unit ? widest.d(m) == target : std::fabs(widest.d(m) - target) <= ulp);
+        }
         held = held && identical;
 
         std::printf("  %-18s %14s %10s %13s   %s\n", "alpha = 1 is 1/pi", "", "", "",
-                    identical ? "identical" : "DIFFERS");
+                    !identical                       ? "DIFFERS"
+                    : every_direction_is_exactly_unit ? "identical"
+                                                      : "within an ulp");
     }
 
-    // The calibration. A distribution that integrates to something other than
-    // one is invisible to every other check on this sheet — it is reciprocal,
-    // it is finite, it agrees with whatever sampler is written against it,
-    // and it renders a surface that is uniformly too bright or too dark in a
-    // way that looks like a material choice. So one is built wrong on purpose
-    // and this section has to catch it.
+    // The calibration, which has to be a model that is actually wrong.
+    //
+    // A distribution that integrates to something other than one is invisible
+    // to every other check on this sheet — it is reciprocal, it is finite, it
+    // agrees with whatever sampler is written against it, and it renders a
+    // surface uniformly too bright or too dark in a way that looks like a
+    // material choice. So one is built wrong on purpose, and it is built
+    // wrong in the specific way this section is about: `MisMeasured` is the
+    // alpha = 1 distribution normalised so that `∫ D dm` is one, which is
+    // what `D` would have to satisfy to deserve `density.hpp`'s type.
+    //
+    // A constant density over the hemisphere is `1/(2pi)` — the hemisphere is
+    // 2pi steradians — where the covering condition gives `1/pi`, so the liar
+    // is exactly half of the truth and its projected integral must come to
+    // 0.5 rather than 1. It is caught by the same test the rows above pass,
+    // which is the only arrangement that makes those rows mean anything.
     {
-        const TrowbridgeReitz as_if_spheres{1.0};
-        const double wrong = over_the_hemisphere(as_if_spheres, false, cells);
-        const bool caught = std::fabs(wrong - 1.0) > 1e-3;
+        struct MisMeasured {
+            double d(const Vec3& m) const {
+                return m.z > 0.0 ? 1.0 / si::two_pi : 0.0;
+            }
+        };
+
+        const MisMeasured liar;
+        const double covering = over_the_hemisphere(liar, true, cells);
+        const double against_solid_angle = over_the_hemisphere(liar, false, cells);
+
+        const bool caught = std::fabs(covering - 1.0) > 1e-3;
         held = held && caught;
 
-        std::printf("  %-18s %14s %10s %13.4f   %s\n",
-                    "against solid angle", "", "", wrong, caught ? "caught" : "ESCAPED");
+        std::printf("  %-18s %+14.3e %10s %13.4f   %s\n",
+                    "normalised to dw", covering - 1.0, "", against_solid_angle,
+                    caught ? "caught" : "ESCAPED");
     }
 
-    std::printf("\n  The last row is the same arithmetic as the last column above,\n"
-                "  and it is there as a failure rather than as a figure: it is what\n"
-                "  this distribution integrates to when it is normalised against the\n"
-                "  wrong measure, and a renderer that made that mistake would be out\n"
-                "  by exactly a factor of two at alpha = 1.\n"
+    std::printf("\n  The last row is a density over solid angle, which is what this\n"
+                "  distribution is usually mistaken for: it integrates to exactly 1\n"
+                "  in the last column, where every correct row above does not, and\n"
+                "  it covers half the surface it claims to. A renderer with that\n"
+                "  mistake in it is out by a factor of two on a rough material and\n"
+                "  by almost nothing on a polished one, which is why it survives\n"
+                "  being looked at.\n"
                 "\n  There is no masking term yet, so nothing here is a BRDF and the\n"
                 "  furnace has nothing to say about it. `smith.hpp` is item 0083 and\n"
                 "  the furnace row for a rough conductor is item 0085.\n");

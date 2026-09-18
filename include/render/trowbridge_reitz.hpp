@@ -101,10 +101,10 @@
 //
 // At `alpha = 1` the denominator is `(c² + s²)² = 1` and the distribution is
 // `1/pi`, in every direction. The facets of a surface of spheres are
-// uniformly distributed over the *projected* hemisphere — which is Lambert's constant, arriving in a file that is not
-// about Lambert, for the third time and from a fourth direction. The sheet
-// compares the two as bit patterns rather than to a tolerance, because both
-// are `si::inv_pi` and nothing has rounded either.
+// uniformly distributed over the *projected* hemisphere — which is Lambert's
+// constant, arriving in a file that has never heard of Lambert, by the third
+// of the three routes above. The sheet compares the two as bit patterns
+// rather than to a tolerance, and says what that rests on.
 //
 // Larger alphas are arithmetic rather than geometry. The derivation above
 // holds for any positive alpha and the normalisation stays exact, but the
@@ -154,9 +154,11 @@
 // divides it by four at every alpha, to two decimal places, which is what a
 // second-order quadrature does and what a wrong constant does not — a
 // distribution that really failed to normalise would sit the same distance
-// from one however finely it was integrated. It grows as the lobe narrows
-// because a narrow lobe is a peaked integrand, at the rate `h²/alpha²` the
-// rule's own error term predicts.
+// from one however finely it was integrated, and the sheet's third column
+// would read 1.00. Doubling the constant on purpose does exactly that, which
+// is how the column is known to be worth printing. The residual grows as the
+// lobe narrows because a narrow lobe is a peaked integrand, at the rate
+// `h²/alpha²` the rule's own error term predicts.
 //
 // The last column is the same integral without the projection, and it is the
 // more interesting one. It is what a reader who assumed `D` was a density
@@ -244,7 +246,11 @@ public:
         // The delta, refused rather than approximated. See above: this is the
         // caller's switch to make, and returning zero makes a caller that
         // forgot produce a black surface rather than a NaN that spreads.
-        if (alpha_ <= 0.0) return 0.0;
+        //
+        // Written as a refused positive rather than as `alpha_ <= 0.0`, so
+        // that a NaN alpha — which compares false against everything and
+        // would otherwise sail through — leaves by the same door as zero.
+        if (!(alpha_ > 0.0)) return 0.0;
 
         const double cos2 = m.z * m.z;
 
@@ -255,10 +261,20 @@ public:
 
         const double a2 = alpha_ * alpha_;
         const double shape = a2 * cos2 + sin2;
+        const double denominator = shape * shape;
+
+        // And the second door, which is the first one's arithmetic rather
+        // than its argument. At the normal the shape is `alpha²` alone, so
+        // the division below is 1/0 once `alpha⁴` underflows — measured, at
+        // an alpha of 1e-81 — and 0/0 once `alpha²` does, at 1e-162. Neither
+        // is a material. Both are an infinity or a NaN in an image, which is
+        // what the guard above promises not to produce, so the promise is
+        // kept here rather than quietly narrowed to the alphas that reach it.
+        if (denominator == 0.0) return 0.0;
 
         // `alpha² / pi`, which the derivation above leaves no freedom in, and
         // the pi is the projected hemisphere rather than a tidying constant.
-        return (a2 * si::inv_pi) / (shape * shape);
+        return (a2 * si::inv_pi) / denominator;
     }
 
 private:

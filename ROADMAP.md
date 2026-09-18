@@ -154,7 +154,7 @@ The thesis.
 
 ## v0.7 — Roughness
 
-`##········` 11% · 1 of 9 done
+`##········` 20% · 2 of 10 done
 
 A surface is a landscape of tiny mirrors, and what it looks like is a statistical question about how they are oriented and how often they hide each other.
 
@@ -172,6 +172,7 @@ A surface is a landscape of tiny mirrors, and what it looks like is a statistica
 ### done
 
 - [x] [`0082`](https://github.com/oddurs/cornell/blob/main/cairn/items/0082-trowbridge-reitz-hpp-named-for-the-people-who-published-it.md) trowbridge_reitz.hpp, named for the people who published it <sup>optics · p0 · bsdf</sup>
+- [x] [`0159`](https://github.com/oddurs/cornell/blob/main/cairn/items/0159-the-microfacet-section-says-things-the-sheet-does-not-print.md) The microfacet section says things the sheet does not print <sup>bug · p1 · verification</sup>
 
 ## v0.8 — Both ends of the path
 
