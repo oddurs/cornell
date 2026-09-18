@@ -154,13 +154,12 @@ The thesis.
 
 ## v0.7 — Roughness
 
-`··········` 0% · 0 of 9 done
+`##········` 11% · 1 of 9 done
 
 A surface is a landscape of tiny mirrors, and what it looks like is a statistical question about how they are oriented and how often they hide each other.
 
 ### backlog
 
-- [ ] [`0082`](https://github.com/oddurs/cornell/blob/main/cairn/items/0082-trowbridge-reitz-hpp-named-for-the-people-who-published-it.md) trowbridge_reitz.hpp, named for the people who published it <sup>optics · p0 · bsdf</sup>
 - [ ] [`0083`](https://github.com/oddurs/cornell/blob/main/cairn/items/0083-smith-hpp-derive-the-masking-function-from-the-distribution.md) smith.hpp: derive the masking function from the distribution <sup>optics · p0 · bsdf · thesis · derivation</sup>
 - [ ] [`0084`](https://github.com/oddurs/cornell/blob/main/cairn/items/0084-visible-normal-sampling-with-its-exact-density.md) Visible-normal sampling, with its exact density <sup>optics · p0 · sampling</sup>
 - [ ] [`0085`](https://github.com/oddurs/cornell/blob/main/cairn/items/0085-verify-the-rough-conductor-vanishes-in-the-furnace.md) Verify: the rough conductor vanishes in the furnace <sup>verify · p0 · verification · thesis</sup>
@@ -169,6 +168,10 @@ A surface is a landscape of tiny mirrors, and what it looks like is a statistica
 - [ ] [`0088`](https://github.com/oddurs/cornell/blob/main/cairn/items/0088-anisotropy-two-roughnesses-and-a-tangent-frame.md) Anisotropy: two roughnesses and a tangent frame <sup>optics · p2 · bsdf</sup>
 - [ ] [`0089`](https://github.com/oddurs/cornell/blob/main/cairn/items/0089-roughness-is-not-alpha-and-the-remapping-is-somebody-s-taste.md) Roughness is not alpha, and the remapping is somebody's taste <sup>optics · p2 · bsdf · admission</sup>
 - [ ] [`0090`](https://github.com/oddurs/cornell/blob/main/cairn/items/0090-prose-what-a-statistical-surface-is.md) Prose: what a statistical surface is <sup>prose · p2 · prose</sup>
+
+### done
+
+- [x] [`0082`](https://github.com/oddurs/cornell/blob/main/cairn/items/0082-trowbridge-reitz-hpp-named-for-the-people-who-published-it.md) trowbridge_reitz.hpp, named for the people who published it <sup>optics · p0 · bsdf</sup>
 
 ## v0.8 — Both ends of the path
 

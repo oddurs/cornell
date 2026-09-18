@@ -26,8 +26,10 @@
 
 #include <render/cornell.hpp>
 #include <render/fresnel.hpp>
+#include <render/lambert.hpp>
 #include <render/schlick.hpp>
 #include <render/sampler.hpp>
+#include <render/trowbridge_reitz.hpp>
 #include <render/scene.hpp>
 #include <render/si.hpp>
 
@@ -773,6 +775,147 @@ inline bool every_density_integrates_to_one() {
                 "  largest is 1.2e-13.\n"
                 "\n  There is no light-sampling density yet, so there is no row for the\n"
                 "  surface of a lamp. It arrives with v0.8, and so does this row.\n");
+
+    return held;
+}
+
+    // Item 0082. The microfacet distribution's normalisation is not a
+    // convention and not a fitted constant: a microsurface has to cover the
+    // macrosurface it is a model of, so
+    //
+    //      ∫ D(m) (n·m) dm = 1
+    //
+    // and that single requirement leaves `alpha² / pi` and nothing else.
+    // `trowbridge_reitz.hpp` derives it in five lines; this is the same
+    // integral done numerically, by a rule that does not know what the
+    // constant is supposed to be.
+    //
+    // The second column is the point of the section as much as the first.
+    // `∫ D dm`, without the projection, is a different number entirely — 20
+    // at a tight lobe, 2 at the widest — and it is what a reader who assumed
+    // `D` was a density over solid angle would have been dividing by. That is
+    // the mistake `density.hpp` exists to make unspellable, and it is why
+    // `d()` returns a plain double rather than borrowing that file's type.
+inline bool the_microfacet_distribution_covers_the_surface_it_models() {
+    using namespace render;
+    bool held = true;
+
+    std::printf("\nThe microfacet distribution covers the surface it models.\n\n"
+                "  %-18s %14s %10s %13s\n", "", "with (n.m)", "at h/2", "without");
+
+    // A midpoint rule over the hemisphere in (theta, phi). The Jacobian is
+    // written out rather than absorbed into the grid — `dm = sin(theta)
+    // d(theta) d(phi)` — because the whole claim is about which measure is
+    // being integrated against, and a grid chosen to make one of them
+    // disappear is a grid that has assumed the answer.
+    //
+    // In theta rather than in cos(theta), which the neighbouring section
+    // uses: a narrow lobe is narrow in angle, and a uniform grid in the
+    // cosine puts almost no samples across it.
+    const auto over_the_hemisphere = [](const TrowbridgeReitz& d, bool projected, int cells) {
+        const double theta_width = (si::pi / 2.0) / double(cells);
+        const double phi_width = si::two_pi / double(cells);
+        double total = 0.0;
+
+        for (int i = 0; i < cells; ++i) {
+            const double theta = theta_width * (double(i) + 0.5);
+            const double cos_theta = std::cos(theta);
+            const double sin_theta = std::sin(theta);
+            for (int j = 0; j < cells; ++j) {
+                const double phi = phi_width * (double(j) + 0.5);
+                const Vec3 m{sin_theta * std::cos(phi), sin_theta * std::sin(phi), cos_theta};
+                total += d.d(m) * (projected ? cos_theta : 1.0) * sin_theta;
+            }
+        }
+        return total * theta_width * phi_width;
+    };
+
+    constexpr int cells = 512;
+
+    // The residual here is the rule's, not the model's, and the third column
+    // is how that stops being an excuse. Halving the grid spacing must divide
+    // the error by four, because a midpoint rule is second order and for no
+    // other reason; a normalisation that was actually wrong would sit at the
+    // same distance from one however finely it was integrated, and the ratio
+    // would be 1.
+    //
+    // The bound itself is the rule's own error rather than a number chosen
+    // to fit: a midpoint rule is wrong by h²/24 times the integral of the
+    // second derivative, and the second derivative of a lobe of width alpha
+    // goes as 1/alpha², so `h²/alpha²` is the scale and the 24 is left as
+    // headroom. The measured residuals come to h²/(12 alpha²) at every alpha
+    // but the last, where the lobe is as wide as the hemisphere and the
+    // constant doubles.
+    for (const double alpha : {0.05, 0.10, 0.25, 0.50, 1.00}) {
+        const TrowbridgeReitz distribution{alpha};
+
+        const double coarse = over_the_hemisphere(distribution, true, cells);
+        const double fine = over_the_hemisphere(distribution, true, 2 * cells);
+        const double plain = over_the_hemisphere(distribution, false, cells);
+
+        const double ratio = std::fabs(coarse - 1.0) / std::fabs(fine - 1.0);
+
+        const double h = (si::pi / 2.0) / double(cells);
+        const double tolerance = (h * h) / (distribution.alpha() * distribution.alpha());
+        const bool ok = std::fabs(coarse - 1.0) < tolerance && ratio > 3.5 && ratio < 4.5;
+        held = held && ok;
+
+        char label[64];
+        std::snprintf(label, sizeof label, "alpha = %.2f", alpha);
+        std::printf("  %-18s %+14.3e %10.2f %13.4f   %s\n",
+                    label, coarse - 1.0, ratio, plain, ok ? "agree" : "DISAGREE");
+    }
+
+    // The one that is exact, and the reason it is worth a row of its own.
+    //
+    // At alpha = 1 the denominator of the distribution is (cos² + sin²)² = 1,
+    // so D is 1/pi in every direction — the facets of the roughest possible
+    // Trowbridge-Reitz surface are uniform over the projected hemisphere.
+    // That is Lambert's constant, in a file that has never heard of Lambert,
+    // and the two are compared as bit patterns rather than to a tolerance
+    // because both are `si::inv_pi` and nothing has rounded either.
+    {
+        const TrowbridgeReitz widest{1.0};
+        const Vec3 directions[] = {
+            Vec3{0.0, 0.0, 1.0},
+            Vec3{std::sin(0.4), 0.0, std::cos(0.4)},
+            Vec3{0.0, std::sin(1.2), std::cos(1.2)},
+            Vec3{std::sin(1.5) * std::cos(2.0), std::sin(1.5) * std::sin(2.0), std::cos(1.5)},
+        };
+
+        bool identical = true;
+        for (const Vec3& m : directions)
+            identical = identical && widest.d(m) == 1.0 / projected_hemisphere;
+        held = held && identical;
+
+        std::printf("  %-18s %14s %10s %13s   %s\n", "alpha = 1 is 1/pi", "", "", "",
+                    identical ? "identical" : "DIFFERS");
+    }
+
+    // The calibration. A distribution that integrates to something other than
+    // one is invisible to every other check on this sheet — it is reciprocal,
+    // it is finite, it agrees with whatever sampler is written against it,
+    // and it renders a surface that is uniformly too bright or too dark in a
+    // way that looks like a material choice. So one is built wrong on purpose
+    // and this section has to catch it.
+    {
+        const TrowbridgeReitz as_if_spheres{1.0};
+        const double wrong = over_the_hemisphere(as_if_spheres, false, cells);
+        const bool caught = std::fabs(wrong - 1.0) > 1e-3;
+        held = held && caught;
+
+        std::printf("  %-18s %14s %10s %13.4f   %s\n",
+                    "against solid angle", "", "", wrong, caught ? "caught" : "ESCAPED");
+    }
+
+    std::printf("\n  The last row is the same arithmetic as the last column above,\n"
+                "  and it is there as a failure rather than as a figure: it is what\n"
+                "  this distribution integrates to when it is normalised against the\n"
+                "  wrong measure, and a renderer that made that mistake would be out\n"
+                "  by exactly a factor of two at alpha = 1.\n"
+                "\n  There is no masking term yet, so nothing here is a BRDF and the\n"
+                "  furnace has nothing to say about it. `smith.hpp` is item 0083 and\n"
+                "  the furnace row for a rough conductor is item 0085.\n");
 
     return held;
 }
@@ -1600,6 +1743,7 @@ inline int verify() {
     all = sheet::every_sampler_agrees_with_the_density_it_claims()       && all;
     all = sheet::lambert_and_a_mirror_vanish_in_the_furnace()            && all;
     all = sheet::every_density_integrates_to_one()                       && all;
+    all = sheet::the_microfacet_distribution_covers_the_surface_it_models() && all;
     all = sheet::every_bsdf_returns_the_same_value_swapped()             && all;
     all = sheet::no_non_finite_value_reaches_the_film()                  && all;
     all = sheet::no_instrument_catches_everything()                      && all;
