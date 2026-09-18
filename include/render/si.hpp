@@ -43,7 +43,7 @@ namespace render::si {
 // a machine, not a metrology lab". The opposite applies here, and for a
 // reason worth a paragraph.
 //
-// Since the 2019 redefinition, the three constants below are not measured.
+// Since the 2019 redefinition, the four constants below are not measured.
 // They are *exact*, by definition: the SI fixes their numerical values and
 // derives the metre, the kilogram and the kelvin from them. The second is
 // defined by a caesium transition, the speed of light is then declared to be
@@ -60,6 +60,15 @@ inline constexpr double inv_pi    = std::numbers::inv_pi;
 inline constexpr double c_light   = 299792458.0;        // m/s     exact, 1983
 inline constexpr double h_planck  = 6.62607015e-34;     // J·s     exact, 2019
 inline constexpr double k_boltz   = 1.380649e-23;       // J/K     exact, 2019
+inline constexpr double e_charge  = 1.602176634e-19;    // C       exact, 2019
+
+// The elementary charge is in that list for the same reason as the other
+// three — the 2019 redefinition fixed its numerical value, so those digits are
+// the whole number — and it is here *once* for a different reason. It was
+// written out three times in this file: in the `_eV` literal, in `as::eV`, and
+// in `wavelength_of_eV`. Three copies of an exact constant is three places for
+// a digit to be dropped and two of them to go on saying the right answer,
+// which is house rule 6's argument applied to a file rather than to a README.
 
 // The visible range this project works in. 360 to 830 nm is the domain of the
 // CIE 1931 colour matching functions, which is the only principled place to
@@ -149,7 +158,7 @@ consteval double operator""_kW (long double v) { return double(v) * 1e3;     }
 // and the reason Johnson and Christy's tables in v0.6 are indexed in eV
 // rather than in nanometres. The conversion is exact, being a defined charge
 // times a defined joule.
-consteval double operator""_eV (long double v) { return double(v) * 1.602176634e-19; }
+consteval double operator""_eV (long double v) { return double(v) * e_charge; }
 
 // Temperature. Absolute only: a blackbody at a negative kelvin is not a
 // dimmer blackbody, it is an error that will propagate quietly through
@@ -180,7 +189,7 @@ constexpr double um  (double m_)   { return m_  * 1e6;             }
 constexpr double nm  (double m_)   { return m_  * 1e9;             }
 constexpr double in  (double m_)   { return m_  / 0.0254;          }
 constexpr double deg (double rad)  { return rad * 180.0 / pi;      }
-constexpr double eV  (double J)    { return J   / 1.602176634e-19; }
+constexpr double eV  (double J)    { return J   / e_charge;         }
 constexpr double mW  (double W)    { return W   * 1e3;             }
 constexpr double C   (double K)    { return K   - 273.15;          }
 constexpr double THz (double Hz)   { return Hz  / 1e12;            }
@@ -199,8 +208,8 @@ constexpr double photon_energy (double lambda) { return h_planck * c_light / lam
 // renderer works in metres. `swatch.hpp` scans in energy because that is the
 // axis the physics is flat in; this is the only conversion between them and
 // it is here rather than repeated at the call sites.
-constexpr double wavelength_of_eV(double eV) {
-    return h_planck * c_light / (eV * 1.602176634e-19);
+constexpr double wavelength_of_eV(double volts) {
+    return h_planck * c_light / (volts * e_charge);
 }
 
 // ── What is deliberately absent ───────────────────────────────────────────

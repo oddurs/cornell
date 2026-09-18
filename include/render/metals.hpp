@@ -78,6 +78,7 @@
 
 #include <array>
 #include <cstddef>
+#include <type_traits>
 
 #include <render/conductor.hpp>
 #include <render/fresnel.hpp>
@@ -219,7 +220,31 @@ inline constexpr Optical<copper_samples>    copper{{copper_lambda, copper_n},
 inline constexpr Optical<aluminium_samples> aluminium{{aluminium_lambda, aluminium_n},
                                                       {aluminium_lambda, aluminium_k}};
 
-static_assert(ComplexSpectralValue<Optical<gold_samples>>);
+// The two grids, named for the people who measured them rather than for the
+// metals that happen to sit on them.
+//
+// This matters more than it looks. The aliases in `scene.hpp` were once
+// `NobleConductor` and `LightConductor` — names that claim a chemical
+// category when what they actually encode is a *table length*: 49 rows or 29.
+// The three noble metals share a type because Johnson and Christy measured
+// them in one run on one instrument, not because they are noble, and the day
+// somebody adds a 49-point aluminium table `NobleConductor` would hold
+// aluminium and nothing would complain.
+//
+// Naming them for the measurement makes `scene.hpp`'s variant read as what
+// `swatch.hpp` says the scene is: a list of citations.
+using JohnsonChristy = Optical<gold_samples>;
+using Rakic          = Optical<aluminium_samples>;
+
+static_assert(ComplexSpectralValue<JohnsonChristy>);
+static_assert(ComplexSpectralValue<Rakic>);
+
+static_assert(std::is_same_v<decltype(gold), const JohnsonChristy>
+              && std::is_same_v<decltype(silver), const JohnsonChristy>
+              && std::is_same_v<decltype(copper), const JohnsonChristy>,
+              "the noble metals share a grid because they share a measurement");
+static_assert(!std::is_same_v<decltype(aluminium), const JohnsonChristy>,
+              "and aluminium does not, because it is somebody else's paper");
 
 // ── Checked at compile time ──────────────────────────────────────────────
 //
