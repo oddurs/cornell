@@ -73,6 +73,8 @@
 #include <render/cie.hpp>
 #include <render/illuminant.hpp>
 #include <render/lambert.hpp>
+#include <render/conductor.hpp>
+#include <render/metals.hpp>
 #include <render/specular.hpp>
 #include <render/ray.hpp>
 #include <render/sphere.hpp>
@@ -107,7 +109,17 @@ using MeasuredLambert = Lambert<Measured<measured_reflectance_samples>>;
 // or forgot to divide at all.
 using GreySpecular = Specular<FlatReflectance>;
 
-using Bsdf = std::variant<GreyLambert, SpectralLambert, MeasuredLambert, GreySpecular>;
+// And the metals, which are the same mirror asking `fresnel.hpp` what it
+// reflects at each wavelength, with `metals.hpp`'s measured tables supplying
+// the index. There is no colour in any of these three lines, which is the
+// project's whole argument arriving as a type alias.
+using FlatConductor = Conductor<FlatIndex>;
+using NobleConductor = Conductor<metal::Optical<metal::gold_samples>>;
+using LightConductor = Conductor<metal::Optical<metal::aluminium_samples>>;
+
+using Bsdf = std::variant<GreyLambert, SpectralLambert, MeasuredLambert,
+                          GreySpecular, FlatConductor,
+                          NobleConductor, LightConductor>;
 
 static_assert(BsdfModel<GreyLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
@@ -116,6 +128,12 @@ static_assert(BsdfModel<SpectralLambert>,
 static_assert(BsdfModel<MeasuredLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<GreySpecular>,
+              "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<FlatConductor>,
+              "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<NobleConductor>,
+              "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<LightConductor>,
               "every alternative of Bsdf must satisfy the three-method contract");
 
 // What a surface emits. Same argument: an emitter is a spectrum and a scale,

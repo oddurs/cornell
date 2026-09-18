@@ -195,6 +195,14 @@ constexpr double frequency_of  (double lambda) { return c_light / lambda;  }
 constexpr double wavelength_of (double nu)     { return c_light / nu;      }
 constexpr double photon_energy (double lambda) { return h_planck * c_light / lambda; }
 
+// And back, because a band structure is quoted in electron volts and a
+// renderer works in metres. `swatch.hpp` scans in energy because that is the
+// axis the physics is flat in; this is the only conversion between them and
+// it is here rather than repeated at the call sites.
+constexpr double wavelength_of_eV(double eV) {
+    return h_planck * c_light / (eV * 1.602176634e-19);
+}
+
 // ── What is deliberately absent ───────────────────────────────────────────
 //
 // There are no photometric units here. No lumens, no lux, no candela, no

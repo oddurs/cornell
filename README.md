@@ -266,7 +266,7 @@ cornell — a box in a lab, modelled from first principles, for no reason.
   chi2      v0.5  built  that sample() and pdf() describe the same distribution
   converge  v0.5  built  that RMSE falls as N^-1/2, or the estimator is biased
   verify    v0.4  built  every physical claim the project makes, in one run
-  swatch    v0.6         the metals, rendered from nothing but citations
+  swatch    v0.6  built  the metals, rendered from nothing but citations
 ```
 
 ### What the furnace says today
@@ -338,6 +338,52 @@ p = 0.04.
       1048576        5.740e-05    0.000e+00
       4194304        3.766e-15    0.000e+00
 ```
+
+### And where the colour of gold comes from
+
+The thesis, checked. `metals.hpp` holds two columns of measured numbers per
+metal and no colour at all; `fresnel.hpp` turns a complex refractive index
+into a reflectance; `cie.hpp` turns a spectrum into three numbers because eyes
+have three cone types. Nothing in between knows what yellow is.
+
+```
+$ ./cornell swatch
+
+                      x         y         R         G         B        edge
+  gold          0.38177   0.38870    1.0000    0.7020    0.3514    2.380 eV
+  copper        0.35575   0.34559    1.0000    0.6683    0.5606    2.129 eV
+  silver        0.31350   0.32967    1.0000    0.9945    0.9883    3.740 eV
+  aluminium     0.31161   0.32825    0.9837    0.9930    1.0000    1.342 eV
+```
+
+Gold comes out at **(1.0000, 0.7020, 0.3514)**. The constant every renderer in
+the world types for gold is `vec3(1.0, 0.766, 0.336)`. Those two numbers have
+never met: one is a table measured by Johnson and Christy in 1972 pushed
+through Fresnel's equations and the 1931 observer, and the other has been
+copied between renderers for thirty years without a citation. They agree to
+0.064.
+
+The **edge** column is the part that can be checked against something other
+than the table the program read. It is where each metal's reflectance falls
+off a cliff, and that cliff is an interband transition — an electron promoted
+from a filled d band to the Fermi surface — whose energy is a property of the
+metal's band structure, quoted in the solid-state literature independently of
+anybody's optical measurement:
+
+| metal | measured here | literature |
+|---|---|---|
+| gold | 2.380 eV | ~2.4 eV, d-band threshold |
+| copper | 2.129 eV | ~2.1 eV |
+| silver | 3.740 eV | ~3.8 eV, plasma edge |
+| aluminium | 1.342 eV | ~1.5 eV, parallel-band |
+
+Silver's edge is *above* the visible, which is exactly why silver is neutral
+and gold is not. Aluminium sits 0.0013 from D65 white and gold sits 0.0913 — a
+factor of 68, and nobody typed either.
+
+Swap gold's table for copper's and the same code returns (1.0000, 0.6683,
+0.5606). The reflection turns pink because of physics, not because somebody
+typed pink.
 
 ### And what the convergence slope says
 

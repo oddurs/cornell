@@ -103,6 +103,29 @@ jobs:
           # the one that would catch a bias nothing else can see.
           ./cornell converge
 
+          # The metals, and the thesis they carry.
+          ./cornell swatch --no-image
+
+          # Item 0073's criterion, which is a property of the source rather
+          # than of a run: no metal in this project has an RGB value.
+          #
+          # The item asked for `grep -r "0.766\|0.336"` to return nothing, and
+          # half of that cannot hold: 0.336200000 is the CIE 1931 observer's
+          # x-bar at 450 nm, measured by seventeen people in London and
+          # nothing to do with gold. A guard that fires on real data is a
+          # guard somebody switches off. So it looks for 0.766, which has no
+          # other business in this repository, outside comments — where it
+          # appears on purpose, because the point is to name the constant
+          # this project refuses to type.
+          # It is allowed in exactly one place and under exactly one name: the
+          # `typed` array the instruments compare their derived answer
+          # against. That is the constant being held up, not used.
+          if grep -rn '0\.766' include/ apps/ --include='*.hpp' \
+             | grep -v ':[[:space:]]*//' | grep -v 'typed'; then
+            echo "gold's colour has been typed in"
+            exit 1
+          fi
+
           # `make strict` arrives with the Makefile item; until then there is
           # no target to call.
           if grep -q '^strict:' Makefile; then
