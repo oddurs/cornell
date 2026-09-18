@@ -270,6 +270,67 @@ struct Measured {
 
 static_assert(SpectralValue<Measured<2>>);
 
+// A spectrum somebody measured on a grid that is not uniform.
+//
+// `Measured` above takes a first wavelength and a step, which fits Cornell's
+// walls at 4 nm and the CIE observer at 5 nm and does not fit the next table
+// this project needs. Johnson and Christy measured the noble metals at 49
+// evenly spaced *photon energies*, and energy is inversely proportional to
+// wavelength, so their grid runs from 1.9 nm apart at the blue end to 320 nm
+// apart at the infrared one. Resampling it onto an even wavelength grid would
+// be the first quiet lie in the chain the whole milestone exists to keep
+// honest — it would throw away resolution where the measurement is dense and
+// invent it where it is sparse.
+//
+// So the wavelengths travel with the values, which is what this file's
+// opening said would have to happen: "the grid travels with the numbers
+// rather than being a global convention that half the data does not obey".
+//
+// Ascending order is required and asserted, because the search below depends
+// on it and a table pasted in the other direction is a silent wrong answer
+// rather than a loud one.
+template <std::size_t N>
+struct Tabulated {
+    std::array<double, N> lambda{};
+    std::array<double, N> value{};
+
+    constexpr double at(double at_lambda) const {
+        if (at_lambda <= lambda[0]) return value[0];
+        if (at_lambda >= lambda[N - 1]) return value[N - 1];
+
+        // Linear, in wavelength, between the two samples that bracket it.
+        // Not a spline: a spline through measured points invents inflections
+        // the measurement does not have, and near gold's interband edge —
+        // where the curve bends hard — inventing one is inventing a colour.
+        std::size_t high = 1;
+        while (high < N - 1 && lambda[high] < at_lambda) ++high;
+
+        const double span = lambda[high] - lambda[high - 1];
+        const double fraction = (at_lambda - lambda[high - 1]) / span;
+        return value[high - 1] * (1.0 - fraction) + value[high] * fraction;
+    }
+
+    constexpr bool ascending() const {
+        for (std::size_t i = 1; i < N; ++i)
+            if (!(lambda[i] > lambda[i - 1])) return false;
+        return true;
+    }
+
+    constexpr double lowest() const {
+        double m = value[0];
+        for (std::size_t i = 1; i < N; ++i) m = value[i] < m ? value[i] : m;
+        return m;
+    }
+
+    constexpr double highest() const {
+        double m = value[0];
+        for (std::size_t i = 1; i < N; ++i) m = value[i] > m ? value[i] : m;
+        return m;
+    }
+};
+
+static_assert(SpectralValue<Tabulated<2>>);
+
 struct RadianceTag;     // L, W·m⁻²·sr⁻¹·m⁻¹  — what a path carries
 struct ReflectanceTag;  // unitless in [0,1]  — what a surface keeps
 struct BrdfTag;         // f, sr⁻¹, unbounded — what a surface does

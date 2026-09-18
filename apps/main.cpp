@@ -28,6 +28,7 @@
 #include "converge.hpp"
 #include "furnace.hpp"
 #include "render.hpp"
+#include "swatch.hpp"
 #include "replay.hpp"
 #include "spec.hpp"
 #include "verify.hpp"
@@ -75,7 +76,8 @@ void print_witnesses() {
                 "  ./cornell furnace [--bsdf lambert] [--rho R] [--no-image]\n"
                 "  ./cornell chi2\n"
                 "  ./cornell converge\n"
-                "  ./cornell replay x,y,sample [width]   one path, again, on one thread\n");
+                "  ./cornell replay x,y,sample [width]   one path, again, on one thread\n"
+                "  ./cornell swatch [--no-image]\n");
     std::printf("  --tonemap clip|reinhard   a choice, not physics; see tonemap.hpp\n");
     std::printf("  --lamp d65|a              daylight, or tungsten\n");
     std::printf("  --no-adapt                do not chromatically adapt; see bradford.hpp\n");
@@ -116,6 +118,13 @@ int main(int argc, char* argv[]) {
     if (command == "verify") return app::verify();
 
     if (command == "chi2") return app::chi2();
+
+    if (command == "swatch") {
+        bool image = true;
+        for (int i = 2; i < argc; ++i)
+            if (std::string_view{argv[i]} == "--no-image") image = false;
+        return app::swatch(image);
+    }
 
     if (command == "converge") return app::converge();
 

@@ -34,6 +34,7 @@
 #include "chi2.hpp"
 #include "furnace.hpp"
 #include "render.hpp"
+#include "swatch.hpp"
 
 namespace app {
 
@@ -1405,6 +1406,103 @@ inline int verify() {
                     "  function here. Brewster's angle exists because `r_p` can reach\n"
                     "  zero; with a complex index it cannot, and nothing had to be\n"
                     "  written for that — the same equation stops having a root.\n");
+    }
+
+    // ── The colour of a metal, from its table ────────────────────────────
+    //
+    // Items 0073, 0075 and 0078, and the project's thesis. `./cornell swatch`
+    // prints the argument and the picture; what belongs on the sheet is
+    // whether the numbers came out where the physics says.
+    //
+    // The hard part of this check is finding something to compare against
+    // that is not the table the program just read. The chromaticity is a
+    // consequence of the table, so comparing it against a figure derived from
+    // the same table proves only that the arithmetic ran.
+    //
+    // The reflectance *edge* is not. Where a metal's reflectance falls off a
+    // cliff is an interband transition — an electron promoted from a filled d
+    // band to the Fermi surface — and its energy is a property of the metal's
+    // band structure, quoted in the solid-state literature independently of
+    // anybody's optical measurement. Gold's threshold is about 2.4 eV,
+    // copper's about 2.1, silver's plasma edge about 3.8, and aluminium's
+    // parallel-band absorption about 1.5. If the tables were transcribed
+    // wrongly, or the complex arithmetic were wrong, those four would not
+    // land where a physics textbook says they do.
+    {
+        using namespace swatch_detail;
+
+        std::printf("\nA metal's colour comes out of its table, and lands where the band\n"
+                    "structure says it should.\n\n"
+                    "  %-12s %8s %8s %10s %11s %10s\n",
+                    "", "x", "y", "from white", "edge, eV", "published");
+
+        const Chromaticity white = cie::check::d65_chromaticity;
+
+        struct Row {
+            const char* name;
+            double edge;        // what the literature quotes, in eV
+            double allowed;     // how far from it this may land
+            bool neutral;
+        };
+
+        const auto check_metal = [&](const Row& row, const auto& index) {
+            const Chromaticity c = chromaticity_of(tristimulus_of(index));
+            const auto [edge, slope] = reflectance_edge(index);
+            const double from_white = std::hypot(c.x - white.x, c.y - white.y);
+
+            const bool coloured_right = row.neutral ? from_white < 0.01 : from_white > 0.03;
+            const bool edge_right = std::fabs(edge - row.edge) < row.allowed;
+            all_agree = all_agree && coloured_right && edge_right;
+            (void)slope;
+
+            std::printf("  %-12s %8.5f %8.5f %10.5f %11.3f %10.1f   %s\n",
+                        row.name, c.x, c.y, from_white, edge, row.edge,
+                        (coloured_right && edge_right) ? "agree" : "DISAGREE");
+        };
+
+        check_metal({"gold",      2.4, 0.2, false}, metal::gold);
+        check_metal({"copper",    2.1, 0.2, false}, metal::copper);
+        check_metal({"silver",    3.8, 0.2, true },  metal::silver);
+        check_metal({"aluminium", 1.5, 0.3, true },  metal::aluminium);
+
+        std::printf("\n      Four metals, four band-structure energies, none of them typed\n"
+                    "      into this program and none of them derivable from the tables\n"
+                    "      without the equations in between.\n");
+
+        // And the line CLAUDE.md opens with, checked rather than asserted.
+        {
+            const Xyz value = tristimulus_of(metal::gold);
+            const Xyz rgb = apply(srgb::xyz_to_rgb, value.x, value.y, value.z);
+            const double most = std::fmax(rgb.x, std::fmax(rgb.y, rgb.z));
+
+            constexpr double typed[3] = {1.0, 0.766, 0.336};
+            const double derived[3] = {rgb.x / most, rgb.y / most, rgb.z / most};
+
+            double worst = 0.0;
+            for (int i = 0; i < 3; ++i)
+                worst = std::fmax(worst, std::fabs(derived[i] - typed[i]));
+
+            const bool close = worst < 0.1;
+            all_agree = all_agree && close;
+
+            std::printf("\n  %-46s %9s        %s   worst %.4f\n",
+                        "derived gold against the constant everyone types", "1 .766 .336",
+                        close ? "agree" : "DISAGREE", worst);
+            std::printf("      derived %.4f %.4f %.4f, from two columns of measured n and k\n"
+                        "      through Fresnel through the 1931 observer, with nothing typed.\n"
+                        "      The gap is not error: the constant is somebody else's table,\n"
+                        "      under somebody else's illuminant, copied between renderers for\n"
+                        "      thirty years without a citation.\n",
+                        derived[0], derived[1], derived[2]);
+        }
+
+        // No colour, anywhere, which is item 0073's criterion and is a
+        // property of the source rather than of a run. It is checked in CI by
+        // grep and stated here so the sheet says it.
+        std::printf("\n  And the criterion that is not a measurement: no metal in this\n"
+                    "  project has an RGB value in any file. CI greps for the constant\n"
+                    "  and fails the build if it appears outside the one array that\n"
+                    "  exists to be compared against.\n");
     }
 
     std::printf("\n%s\n", all_agree
