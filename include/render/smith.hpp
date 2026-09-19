@@ -276,6 +276,30 @@ public:
 
     // Lambda: the back-facing microsurface area per unit of projected
     // macrosurface, derived above.
+    //
+    // ── The sign, which the derivation above did not need ────────────────
+    //
+    // Everything on this page assumes `v` is a direction you could see the
+    // surface from, so `cos(theta_v)` is positive and so is `Lambda`. A ray
+    // *travelling into* the surface has a negative one, and the difference is
+    // not a convention: `Lambda` divides a back-facing area by a projection,
+    // and for a downward direction that projection has the other sign.
+    //
+    // Carrying it correctly costs one factor. Writing `a` for
+    // `cot(theta)/alpha` as Smith does, the closed form is
+    //
+    //      Lambda = ( -1 + sign(a) sqrt(1 + 1/a²) ) / 2
+    //
+    // and `sign(a)` is `sign(v.z)`, so the derivation above is the upper
+    // hemisphere's case of this one. Straight down gives exactly -1, which is
+    // the value the walk in `multiple_scattering.hpp` leans on: a ray heading
+    // into the surface has a probability 1 of meeting it.
+    //
+    // Nothing that was written before this file grew a walk passes a downward
+    // direction here — `masking` clamps on `v·m` and `torrance_sparrow.hpp`
+    // mirrors both directions into the upper hemisphere before asking — so
+    // this is a capability rather than a change, and `./cornell verify` prints
+    // the same figures it printed before the sign existed.
     double lambda(const Vec3& v) const {
         const double cos2 = v.z * v.z;
         const double sin2 = v.x * v.x + v.y * v.y;
@@ -288,10 +312,12 @@ public:
         // failure that shows up rather than the one that does not.
         if (cos2 == 0.0) return std::numeric_limits<double>::infinity();
 
+
         const double alpha = distribution_.alpha();
         const double tan2 = sin2 / cos2;
+        const double sign = v.z < 0.0 ? -1.0 : 1.0;
 
-        return 0.5 * (std::sqrt(1.0 + alpha * alpha * tan2) - 1.0);
+        return 0.5 * (sign * std::sqrt(1.0 + alpha * alpha * tan2) - 1.0);
     }
 
     // G₁: the fraction of the facets facing `v` that are not hidden.

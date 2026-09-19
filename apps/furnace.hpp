@@ -206,7 +206,20 @@ double directional_albedo_by_sampling(const Model& model, const Vec3& wo, int dr
         // f · cos / pdf. A Brdf, scaled by a cosine, divided by a density:
         // the sr⁻¹ cancels and what comes back is a Reflectance, which is
         // what a directional albedo is.
-        const Reflectance weight = drawn.f * abs_cos_theta(drawn.wi) / drawn.pdf;
+        //
+        // Unless the division already happened, which is the case for a
+        // mirror and, since item 0161, for a walk. The branch is the same one
+        // `transport.hpp` writes at its own point of use, and it is here for
+        // the same reason: an instrument that formed the ratio anyway would
+        // divide a single-scattering `f` by a single-scattering `pdf` and
+        // report that as the albedo of a material that does more than that.
+        //
+        // The first version of this routine did exactly that and returned NaN
+        // for every row, which was luckier than it sounds — a plausible
+        // number would have been believed.
+        const Reflectance weight =
+            drawn.weight_is_taken() ? drawn.weight
+                                    : drawn.f * abs_cos_theta(drawn.wi) / drawn.pdf;
         total += weight[0];
     }
     return total / double(draws);
@@ -529,15 +542,19 @@ inline int furnace_accounting() {
 //
 // Nothing here is a failure of the code. It is the model, and `torrance_
 // sparrow.hpp` says in its own opening that it was written knowing this.
-inline int furnace_conductor(double alpha_asked, bool write_image) {
+inline int furnace_conductor(double alpha_asked, bool write_image, bool walk) {
     using namespace furnace_detail;
     using namespace render;
 
     std::printf("The white furnace, with a rough conductor in it.\n\n"
                 "Reflectance 1 at every wavelength and every angle, so the material\n"
                 "absorbs nothing and any light that does not come back was lost by the\n"
-                "model. A single-scattering microfacet BRDF drops the light that one\n"
-                "facet reflects into another, and this is how much.\n\n");
+                "model.\n\n");
+    std::printf(walk
+        ? "This one follows the light: the rays a single-scattering model drops\n"
+          "are walked to the facet they meet next, and on until they leave.\n\n"
+        : "A single-scattering microfacet BRDF drops the light that one facet\n"
+          "reflects into another, and this is how much.\n\n");
 
     constexpr double roughnesses[] = {0.001, 0.010, 0.050, 0.100, 0.200,
                                       0.400, 0.600, 0.800, 1.000};
@@ -566,7 +583,9 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
                 "quad 0", "samp 0", "quad 60", "samp 60", "quad 85", "samp 85");
 
     for (const double alpha : roughnesses) {
-        const Bsdf rough{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
+        const Bsdf rough = walk
+            ? Bsdf{GreyWalk{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}}
+            : Bsdf{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
         std::printf("      %5.3f", alpha);
 
         for (const double degrees : angles) {
@@ -584,6 +603,13 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
             // everywhere by a constant, and no amount of lost energy can
             // disguise that at the smooth end, where there is none.
             if (by_sampling > 1.0 + 1e-6 || by_quadrature > 1.0 + 1e-6) ++failures;
+
+            // And for the walk, the whole claim: it does not merely fail to
+            // exceed one, it reaches it. Held to a tolerance a hundred times
+            // tighter than the estimator's own noise would need, because with
+            // a reflectance of 1 the estimate has no noise — every walk
+            // returns exactly 1 and the mean of a constant is that constant.
+            if (walk && std::fabs(by_sampling - 1.0) > 1e-12) ++failures;
 
             // Four decimals, not six. The sampled column is an estimate and
             // its standard error at this draw count is a few parts in ten
@@ -614,7 +640,9 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
     // false. That is still true, and it is not much use on a distribution the
     // grid cannot see. Two instruments, each blind where the other sees.
     {
-        const Bsdf smoothest{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{0.001}}};
+        const Bsdf smoothest = walk
+            ? Bsdf{GreyWalk{FlatReflectance{1.0}, TrowbridgeReitz{0.001}}}
+            : Bsdf{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{0.001}}};
         const Vec3 up{0.0, 0.0, 1.0};
         const double sampled = directional_albedo_by_sampling(smoothest, up, draws);
 
@@ -629,13 +657,19 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
                     "   a surface that smooth is a mirror, and a mirror loses nothing. %s\n",
                     sampled, vanishes ? "It does." : "IT DOES NOT.");
 
+        if (walk)
+            std::printf("   For the walk that is the easy end rather than the claim: it\n"
+                        "   is 1 at every roughness in the table, and held to 1e-12.\n");
+
         // And the two columns have to meet where both can see. This is the
         // furnace's second residual doing its original job — catching `sample`
         // and `pdf` describing different distributions — on the first material
         // in the project where they are not the same two lines of arithmetic.
         double worst_disagreement = 0.0;
         for (const double alpha : {0.200, 0.400, 0.600, 0.800, 1.000}) {
-            const Bsdf rough{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
+            const Bsdf rough = walk
+                ? Bsdf{GreyWalk{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}}
+                : Bsdf{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
             for (const double degrees : angles) {
                 const double theta = degrees * si::pi / 180.0;
                 const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
@@ -645,13 +679,27 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
                             - directional_albedo_by_sampling(rough, wo, draws)));
             }
         }
-        const bool agree = worst_disagreement < 1e-3;
+        // For the single-scattering model the two columns must agree: `eval`,
+        // `sample` and `pdf` are three descriptions of one surface. For the
+        // walk they must *not*, and the gap is the measurement. `eval` is the
+        // closed-form part — item 0160 — so the quadrature sees only what one
+        // bounce delivers, while the estimator follows every bounce. The
+        // difference between the columns is the recovered energy.
+        const bool agree = walk ? (worst_disagreement > 1e-2)
+                                : (worst_disagreement < 1e-3);
         if (!agree) ++failures;
 
-        std::printf("   Where the grid can see the lobe, from 0.2 up, the two columns\n"
-                    "   agree to %.1e. %s\n", worst_disagreement,
-                    agree ? "`eval`, `sample` and `pdf` describe one surface."
-                          : "THEY DESCRIBE DIFFERENT SURFACES.");
+        std::printf(walk
+            ? "   From 0.2 up the two columns differ by as much as %.3f, and that\n"
+              "   gap is the point: `eval` is the single-scattering part, which is\n"
+              "   all a closed form can be here, and the estimator follows the rest.\n"
+              "   %s\n"
+            : "   Where the grid can see the lobe, from 0.2 up, the two columns\n"
+              "   agree to %.1e. %s\n", worst_disagreement,
+            walk ? (agree ? "The difference is the energy that was being lost."
+                          : "THEY AGREE, WHICH MEANS THE WALK IS NOT WALKING.")
+                 : (agree ? "`eval`, `sample` and `pdf` describe one surface."
+                          : "THEY DESCRIBE DIFFERENT SURFACES."));
     }
 
     // ── And the furnace itself ───────────────────────────────────────────
@@ -669,7 +717,9 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
     std::vector<double> picture;
     bool wrote_image = false;
     for (const double alpha : roughnesses) {
-        const Bsdf rough{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
+        const Bsdf rough = walk
+            ? Bsdf{GreyWalk{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}}
+            : Bsdf{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
         const Scene scene = enclosure::uniform_environment(rough);
         const Residual r = measure(scene, camera, resolution, spp, picture);
 
@@ -703,14 +753,28 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
                 "   darkest sample is 0.0 at every roughness and measures nothing. The\n"
                 "   mean is what the furnace is asking about.\n");
 
-    std::printf("\n   The sphere does not vanish, and the number above is how much of it\n"
-                "   is there. That is item 0086, which is a bug in the model rather than\n"
-                "   in this program, and item 0087 is the decision about what to do.\n"
-                "\n   What this instrument asserts today is the part that would be this\n"
-                "   project's fault: that nothing is brighter than the light put in, that\n"
-                "   the smooth end loses nothing, and that the three ways of asking agree\n"
-                "   wherever they can all see. %s\n",
-                failures == 0 ? "They do." : "SOMETHING ABOVE DOES NOT HOLD.");
+    if (walk)
+        std::printf("\n   The sphere is gone, at every roughness, to every digit printed.\n"
+                    "   Not to within noise: with a reflectance of 1 nothing is absorbed\n"
+                    "   at any facet, so every walk returns exactly 1 and the estimate is\n"
+                    "   the mean of a constant. A furnace that passes this well is not a\n"
+                    "   tuned one, it is one whose estimator has no variance left.\n"
+                    "\n   That is item 0086 repaired, by the route item 0087 chose: the\n"
+                    "   light was followed rather than a curve fitted to where it went.\n"
+                    "   The quadrature column above is the single-scattering model still\n"
+                    "   losing the energy it always did, which is what makes the gap\n"
+                    "   between the two a measurement rather than a claim. %s\n",
+                    failures == 0 ? "Nothing above failed."
+                                  : "SOMETHING ABOVE DOES NOT HOLD.");
+    else
+        std::printf("\n   The sphere does not vanish, and the number above is how much of\n"
+                    "   it is there. That is item 0086, a bug in the model rather than in\n"
+                    "   this program; item 0087 decided what to do and `--bsdf walk` is it.\n"
+                    "\n   What this instrument asserts here is the part that would be this\n"
+                    "   project's fault: that nothing is brighter than the light put in,\n"
+                    "   that the smooth end loses nothing, and that the three ways of\n"
+                    "   asking agree wherever they can all see. %s\n",
+                    failures == 0 ? "They do." : "SOMETHING ABOVE DOES NOT HOLD.");
 
     return failures == 0 ? 0 : 1;
 }
@@ -723,12 +787,14 @@ inline int furnace(std::string_view model, double rho_asked, double alpha_asked,
     // Item 0086's reproduction, spelled the way that item spells it.
     if (table) return furnace_accounting();
 
-    if (model == "conductor") return furnace_conductor(alpha_asked, write_image);
+    if (model == "conductor") return furnace_conductor(alpha_asked, write_image, false);
+    if (model == "walk") return furnace_conductor(alpha_asked, write_image, true);
 
     if (model != "lambert") {
         std::fprintf(stderr,
-                     "cornell: no BSDF called '%.*s'. There are two: lambert, and\n"
-                     "         conductor, which takes --alpha and does not vanish.\n",
+                     "cornell: no BSDF called '%.*s'. There are three: lambert;\n"
+                     "         conductor, which takes --alpha and does not vanish; and\n"
+                     "         walk, which is the same surface with its light followed.\n",
                      int(model.size()), model.data());
         return 1;
     }

@@ -565,14 +565,14 @@ inline Radiance radiance(const Scene& scene,
         // Written as the ratio, in full, at the point of use. House rule 3,
         // and item 0032 for the measurement of what refusing to cancel it
         // costs, which is nothing.
-        // A delta lobe is the one case where there is no ratio to write:
+        // Two kinds have no ratio to write — a delta lobe and a walk:
         // `bsdf.hpp` explains the convention, and the short version is that
         // the two infinities cancelled analytically and the result arrived
         // already divided. Both branches are here rather than one behind a
         // member function, so that the place where the division did not
         // happen is visible at the point of use like every other estimate.
         const double cos_theta_i = abs_cos_theta(scattered.wi);
-        throughput = throughput * (scattered.specular
+        throughput = throughput * (scattered.weight_is_taken()
                                    ? scattered.weight
                                    : scattered.f * cos_theta_i / scattered.pdf);
 

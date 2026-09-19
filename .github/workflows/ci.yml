@@ -108,6 +108,11 @@ jobs:
           # has stopped being multiple scattering and started being a bug.
           ./cornell furnace --table
 
+          # And the repair. This one vanishes, and holds the sampled albedo
+          # to 1e-12 at every roughness — which is not a tight tolerance on a
+          # noisy estimate but an exact statement about one with no variance.
+          ./cornell furnace --bsdf walk --no-image
+
           # And the chi-squared, which `verify` already runs in short form.
           # Run whole anyway: an instrument's own printing path is code, and
           # the short form does not exercise the pooling table or the power

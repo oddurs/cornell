@@ -76,6 +76,7 @@
 #include <render/conductor.hpp>
 #include <render/metals.hpp>
 #include <render/specular.hpp>
+#include <render/multiple_scattering.hpp>
 #include <render/torrance_sparrow.hpp>
 #include <render/ray.hpp>
 #include <render/sphere.hpp>
@@ -120,12 +121,17 @@ using GreySpecular = Specular<FlatReflectance>;
 // is the model losing energy rather than the material absorbing it.
 using GreyRough = TorranceSparrow<FlatReflectance>;
 
+// And the same surface with its light followed instead of dropped. Item 0087
+// chose this over fitting a lobe; `multiple_scattering.hpp` says why it
+// conserves energy exactly rather than closely.
+using GreyWalk = MultipleScattering<FlatReflectance>;
+
 using FlatConductor         = Conductor<FlatIndex>;
 using JohnsonChristyMetal   = Conductor<metal::JohnsonChristy>;
 using RakicMetal            = Conductor<metal::Rakic>;
 
 using Bsdf = std::variant<GreyLambert, SpectralLambert, MeasuredLambert,
-                          GreySpecular, GreyRough, FlatConductor,
+                          GreySpecular, GreyRough, GreyWalk, FlatConductor,
                           JohnsonChristyMetal, RakicMetal>;
 
 static_assert(BsdfModel<GreyLambert>,
@@ -137,6 +143,8 @@ static_assert(BsdfModel<MeasuredLambert>,
 static_assert(BsdfModel<GreySpecular>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<GreyRough>,
+              "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<GreyWalk>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<FlatConductor>,
               "every alternative of Bsdf must satisfy the three-method contract");
