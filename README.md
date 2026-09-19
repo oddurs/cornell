@@ -233,6 +233,31 @@ absorbed — the reflectance is 1 at every wavelength and every angle — so tha
 is the model throwing energy away, and the number is what the instrument was
 built two milestones early to be able to print.
 
+`./cornell furnace --table` says where it went. Every draw ends in one of
+three states, and they are exhaustive, at normal incidence:
+
+```
+      alpha     escaped     masked      below     sum - 1
+      0.050    0.997310   0.000207   0.002483    7.11e-14
+      0.200    0.947618   0.013888   0.038494    7.11e-15
+      0.600    0.591360   0.143731   0.264909    5.77e-15
+      1.000    0.306733   0.192990   0.500277    7.99e-15
+```
+
+`masked` is light another facet intercepted on the way out. `below` is light
+the facet reflected into the surface. Both are the ray meeting the
+microsurface a second time, which a single-scattering model has nothing to say
+about and therefore drops. They sum to one to fourteen decimal places, and
+that closure is the whole difference between a model that is wrong and a
+program that is broken: no light is missing, it is all in states the model
+refuses to follow.
+
+It also corrects the story this repository was going to tell. The usual
+account — and the one written into the roadmap item before it was measured —
+blames the masking term. That is the smaller channel. At roughness 1 a fifth
+of the light is masked and **half of it never points outward at all**. A rough
+surface loses light mostly because it is rough enough to reflect into itself.
+
 Finding that with an instrument built two milestones before the model, rather
 than discovering it in a paper afterwards, is the single best thing this
 project can demonstrate. A check written after the thing it checks is a check

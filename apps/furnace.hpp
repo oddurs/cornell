@@ -106,6 +106,7 @@
 #include <render/si.hpp>
 #include <render/transport.hpp>
 #include <render/warp.hpp>
+#include <render/visible_normals.hpp>
 
 #include "enclosure.hpp"
 #include "image.hpp"
@@ -113,6 +114,10 @@
 namespace app {
 
 namespace furnace_detail {
+
+// The stream the energy accounting draws on. Fixed, like every other seed in
+// this project's instruments: a closure that fails must fail again.
+inline constexpr std::uint64_t seed_accounting = 0x0086'0086'0086'0086;
 
 using namespace render;
 
@@ -317,6 +322,161 @@ inline Residual measure(const Scene& scene, const Camera& camera,
 
 // ── The instrument ───────────────────────────────────────────────────────
 
+// ── Where the light actually goes ────────────────────────────────────────
+//
+// Item 0086, and the reason it is typed as a bug rather than as a
+// measurement. `./cornell furnace --bsdf conductor` says a rough metal of
+// reflectance 1 returns four tenths of the light at roughness 1. This says
+// where the other six tenths went, and the answer has to distinguish between
+// two possibilities that look identical in an image:
+//
+//      the model is throwing energy away    — a bug in the physics
+//      this program is losing it            — a bug in the program
+//
+// Every draw off this surface ends in exactly one of three states, and they
+// are exhaustive by construction rather than by inspection:
+//
+//      escaped   the facet reflected it into the world and nothing blocked it
+//      masked    the facet reflected it upward and another facet intercepted it
+//      below     the facet reflected it into the surface
+//
+// The first is the albedo. The second and third are both *the ray hitting the
+// microsurface a second time*, and a single-scattering model has nothing to
+// say about what happens next, so it drops them.
+//
+// If those three sum to one, no photon is unaccounted for and the deficit is
+// entirely made of rays that struck the surface again. That is the difference
+// between a model that is wrong and a program that is broken, and it is a
+// number rather than an argument.
+//
+// ── What the accounting corrected ────────────────────────────────────────
+//
+// The item describes the mechanism as the masking term dropping shadowed
+// light, which is the usual telling and is the smaller half of the story.
+// Measured, the channel that dominates at almost every roughness is the third
+// one: at normal incidence and roughness 1, a fifth of the light is masked on
+// the way out and *half of it never points outward at all*. The facet drawn
+// from the visible distribution is tilted so far that its mirror direction
+// goes into the ground.
+//
+// The masking channel only leads at grazing, where `Lambda_i` is large for
+// every outgoing direction. So a rough surface loses light mostly because it
+// is rough enough to reflect into itself, and only secondarily because the
+// shadowing term discards what it does reflect outward — and neither is
+// absorption, which is what the material was told to do none of.
+inline int furnace_accounting() {
+    using namespace furnace_detail;
+    using namespace render;
+
+    std::printf("Where the light goes.\n\n"
+                "Every draw off a rough conductor of reflectance 1 ends in one of three\n"
+                "states, and they are exhaustive: it escaped, another facet intercepted\n"
+                "it, or the facet reflected it into the surface. The last two are the\n"
+                "same event — the ray met the microsurface again — and a single-\n"
+                "scattering model drops both.\n\n");
+
+    constexpr double roughnesses[] = {0.050, 0.100, 0.200, 0.400,
+                                      0.600, 0.800, 1.000};
+    constexpr double angles[] = {0.0, 60.0, 85.0};
+    constexpr long draws = 1L << 22;
+
+    std::printf("      alpha  theta  %10s %10s %10s  %10s %9s\n",
+                "escaped", "masked", "below", "sum - 1", "albedo");
+
+    int failures = 0;
+    double worst_closure = 0.0;
+    double worst_against_albedo = 0.0;
+
+    for (const double alpha : roughnesses) {
+        const TrowbridgeReitz distribution{alpha};
+        const Smith smith{distribution};
+        const Bsdf rough{GreyRough{FlatReflectance{1.0}, distribution}};
+
+        for (const double degrees : angles) {
+            const double theta = degrees * si::pi / 180.0;
+            const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+
+            double escaped = 0.0, masked = 0.0, below = 0.0;
+
+            for (long k = 0; k < draws; ++k) {
+                Sampler sampler{seed_accounting, std::uint64_t(k)};
+                const auto [u, v] = sampler.next2();
+
+                const Vec3 m = sample_visible_normal(distribution, wo, u, v);
+                const Vec3 wi = 2.0 * dot(wo, m) * m - wo;
+
+                // Reflected into the surface. In a real height field this ray
+                // travels on and hits something; here it stops, and that is
+                // the model rather than the code.
+                if (!same_hemisphere(wo, wi)) { below += 1.0; continue; }
+
+                // And of what does point outward, the share that gets out.
+                // `chi2.hpp` derives this as the whole of the estimator's
+                // weight when Fresnel is one, so the split below is not a
+                // second model of the same thing — it is that weight, and
+                // what is left over.
+                const double lambda_o = smith.lambda(wo);
+                const double lambda_i = smith.lambda(wi);
+                const double leaves = (1.0 + lambda_o) / (1.0 + lambda_o + lambda_i);
+
+                escaped += leaves;
+                masked += 1.0 - leaves;
+            }
+
+            escaped /= double(draws);
+            masked /= double(draws);
+            below /= double(draws);
+
+            // The claim. Nothing is missing, so the deficit is entirely rays
+            // that hit the surface again.
+            const double closure = escaped + masked + below - 1.0;
+            worst_closure = std::fmax(worst_closure, std::fabs(closure));
+
+            // And the tie back to the instrument next door: the escaped share
+            // has to be the directional albedo, measured by a routine that
+            // knows nothing about this decomposition.
+            const double albedo = directional_albedo_by_sampling(rough, wo, 1 << 21);
+            worst_against_albedo = std::fmax(worst_against_albedo,
+                                             std::fabs(escaped - albedo));
+
+            std::printf("      %5.3f  %5.0f  %10.6f %10.6f %10.6f  %10.2e %9.6f\n",
+                        alpha, degrees, escaped, masked, below, closure, albedo);
+        }
+    }
+
+    if (!(worst_closure < 1e-12)) ++failures;
+    if (!(worst_against_albedo < 2e-3)) ++failures;
+
+    std::printf("\n   The three columns sum to one to %.1e, which is summation of four\n"
+                "   million doubles and not a residual of anything physical. No light\n"
+                "   is unaccounted for: every photon that does not come back is one\n"
+                "   that struck the microsurface a second time and was dropped.\n",
+                worst_closure);
+
+    std::printf("\n   The escaped column and the albedo column are measured by routines\n"
+                "   with nothing in common — one decomposes the draw, the other forms\n"
+                "   f cos / pdf and averages it — and they agree to %.1e, which is the\n"
+                "   noise of two estimators at different draw counts.\n",
+                worst_against_albedo);
+
+    std::printf("\n   The usual telling of this failure blames the masking term. It is\n"
+                "   the smaller channel. At normal incidence a fifth of the light is\n"
+                "   masked on the way out at roughness 1 and half of it never points\n"
+                "   outward at all; the masking channel only leads at grazing. A rough\n"
+                "   surface loses light mostly because it is rough enough to reflect\n"
+                "   into itself.\n");
+
+    std::printf("\n   None of this is absorption. The reflectance is 1 at every\n"
+                "   wavelength and every angle, and `torrance_sparrow.hpp` says in its\n"
+                "   opening that it was written knowing it would fail here. What to do\n"
+                "   about it is item 0087. %s\n",
+                failures == 0
+                    ? "The accounting closes."
+                    : "THE ACCOUNTING DOES NOT CLOSE, WHICH WOULD BE THIS PROGRAM'S FAULT.");
+
+    return failures == 0 ? 0 : 1;
+}
+
 // ── The rough conductor, which is what the instrument was built for ──────
 //
 // Item 0085. Four milestones ago this file said, in its opening, that v0.7's
@@ -350,10 +510,22 @@ inline Residual measure(const Scene& scene, const Camera& camera,
 // `Lambda_i` is substantial in most directions and the deficit is everywhere
 // — but it is *smallest* at grazing, because `Lambda_o` grows without bound
 // there and a ratio whose numerator and denominator both contain a diverging
-// term tends to one. So a rough conductor's furnace image is darkest in the
-// middle and brightest at the edge, which is the opposite of the rim the item
-// expected, and it is not a masking bug. It is what a correct masking term
+// term tends to one. So the angular trend reverses somewhere in the middle of
+// the range, which is not a masking bug: it is what a correct masking term
 // does when the light it masks is thrown away rather than followed.
+//
+// On a sphere that reads as a radial profile, and it is worth stating
+// carefully because the first draft of this comment got it wrong. Annulus-
+// averaged from the rendered image, in linear radiance:
+//
+//      alpha 1.0    0.308 at the centre, rising to 0.589 in the outer tenth
+//      alpha 0.4    0.786 head on, a shallow minimum of 0.757 near sixty
+//                   degrees, and a bright edge
+//
+// So at high roughness the disc really is darkest in the middle and brightest
+// at the rim, and below about 0.5 it is nearly flat with its darkest ring some
+// way out. A single row of pixels at 16 samples cannot tell those apart —
+// that much of the image is noise — and averaging over annuli can.
 //
 // Nothing here is a failure of the code. It is the model, and `torrance_
 // sparrow.hpp` says in its own opening that it was written knowing this.
@@ -520,9 +692,10 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
     }
 
     if (wrote_image)
-        std::printf("\n   furnace-conductor.ppm   alpha = %.3f. The sphere is in it, darkest\n"
-                    "                            in the middle and brightest at the rim,\n"
-                    "                            which the note above the function explains.\n",
+        std::printf("\n   furnace-conductor.ppm   alpha = %.3f. A disc, not a square: the\n"
+                    "                            sphere is there and it should not be. Its\n"
+                    "                            radial profile depends on the roughness,\n"
+                    "                            and the note above this function says how.\n",
                     alpha_asked);
 
     std::printf("\n   Averaged, not minimised. A single path off this surface can carry\n"
@@ -543,9 +716,12 @@ inline int furnace_conductor(double alpha_asked, bool write_image) {
 }
 
 inline int furnace(std::string_view model, double rho_asked, double alpha_asked,
-                   bool write_image) {
+                   bool table, bool write_image) {
     using namespace furnace_detail;
     using namespace render;
+
+    // Item 0086's reproduction, spelled the way that item spells it.
+    if (table) return furnace_accounting();
 
     if (model == "conductor") return furnace_conductor(alpha_asked, write_image);
 

@@ -90,13 +90,31 @@
 //
 // ── What is not modelled ─────────────────────────────────────────────────
 //
-// **The light that bounces twice.** `G₂` says a facet is masked, and drops
-// the light. That light was not absorbed — it hit the facet doing the masking
-// and went on — so this BRDF loses energy, and loses more of it the rougher
-// the surface gets. It is the defining flaw of single-scattering microfacet
-// models, it is in almost every renderer ever shipped, and it is item 0085
-// (measuring it) and item 0086 (what to do). This file is written knowing it
-// will fail the furnace.
+// **The light that bounces twice**, which is now measured rather than
+// predicted. `./cornell furnace --table` accounts for every draw off this
+// surface in three exhaustive states — it escaped, another facet intercepted
+// it, or the facet reflected it into the ground — and they sum to one to
+// 7.1e-14, so nothing is unaccounted for and the deficit is entirely rays
+// that met the microsurface a second time. At normal incidence:
+//
+//      alpha    escaped     masked      below
+//      0.050   0.997310   0.000207   0.002483
+//      0.200   0.947618   0.013888   0.038494
+//      0.600   0.591360   0.143731   0.264909
+//      1.000   0.306733   0.192990   0.500277
+//
+// The usual telling blames the masking term, and that is the smaller channel.
+// At roughness 1, head on, a fifth of the light is masked on the way out and
+// *half of it never points outward at all*: the facet drawn from the visible
+// distribution is tilted far enough that its mirror direction goes into the
+// surface. The masking channel only leads at grazing, where `Lambda_i` is
+// large in every outgoing direction.
+//
+// None of it is absorption — the reflectance in that table is 1 at every
+// wavelength and every angle. It is the defining flaw of single-scattering
+// microfacet models, it is in almost every renderer ever shipped, and what to
+// do about it is item 0087. This file was written knowing it would fail the
+// furnace, and it does: four tenths of the light comes back at roughness 1.
 //
 // **Transmission.** A rough dielectric refracts through the same facets and
 // has a second lobe, which is item 0109 and v0.9's business. This is a
