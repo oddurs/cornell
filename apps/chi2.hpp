@@ -523,7 +523,21 @@ Result test(const Model& model, const Vec3& wo, int draws, std::uint64_t seed) {
         // A test that ran anyway would report p = 0 for a perfectly correct
         // mirror, which is the worst kind of failing test: one that is right
         // about there being a problem and wrong about what it is.
-        if (drawn.specular) {
+        //
+        // Both pre-formed kinds leave here, for different reasons that come
+        // to the same instruction. A delta has no density to compare a
+        // histogram against. A walk has one, and it is a *proxy* — item 0160
+        // decided that `pdf` for a stochastic lobe is the single-scattering
+        // density, declared as something to weight with rather than something
+        // `sample` drew from. Histogramming the walk against it would compare
+        // two distributions that are different on purpose, and report the
+        // difference as a failure of the sampler.
+        //
+        // This is the instrument losing a material, and it is the cost 0160
+        // wrote down in advance rather than the cost being discovered here.
+        // What checks the walk is `./cornell furnace`, which never needed a
+        // density.
+        if (drawn.weight_is_taken()) {
             out.skipped_delta = true;
             out.p = 1.0;
             return out;

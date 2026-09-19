@@ -270,9 +270,29 @@ That is not free, and the cost is not mainly speed. A BSDF defined by a random
 walk has no closed form, so `eval` and `pdf` stop being functions and become
 estimators — which collides with the three-method contract this project
 committed to in v0.1, with the chi-squared instrument, and with the multiple
-importance sampling that the third method exists for. Deciding which of those
-gives is its own item, and it is being decided before anything is written
-rather than by whoever hits it first.
+importance sampling that the third method exists for. That was decided before
+anything was written rather than by whoever hit it first: `pdf` stays a
+function and means *the density to weight with*, which for the walk is the
+single-scattering density declared as a proxy, and `chi2` loses the material
+while the furnace — which never needed a density — keeps it.
+
+`./cornell furnace --bsdf walk` is the repair:
+
+```
+      alpha    mean L on it     deficit
+      0.001        1.000000    +0.000000
+      0.200        1.000000    +0.000000
+      0.600        1.000000    +0.000000
+      1.000        1.000000    +0.000000
+```
+
+The sphere is gone. Not to within noise — with a reflectance of 1 nothing is
+absorbed at any facet, so every walk returns exactly 1 and the estimator has
+no variance to converge. A furnace that passes this well is not a tuned one.
+
+The single-scattering column is still in the same table, still losing the
+energy it always did, which is what makes the gap between the two a
+measurement rather than a claim.
 
 Finding that with an instrument built two milestones before the model, rather
 than discovering it in a paper afterwards, is the single best thing this

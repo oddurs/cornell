@@ -165,14 +165,32 @@ struct BsdfSample {
     //
     // Getting this wrong makes a mirror too dark by the pdf, which looks
     // exactly like an artistic choice.
-    Reflectance weight{};       // f · cos / pdf, already taken, for a delta lobe
-    bool specular = false;      // and whether that is what this is
+    Reflectance weight{};       // f · cos / pdf, already taken, where there
+                                // was no ratio to write
+
+    // Which of the three kinds this is. It was a `bool` called `specular`
+    // until item 0160, which decided what a stochastic BSDF does to this
+    // contract and found that two values can name two of three cases.
+    enum class Kind {
+        Closed,      // `f` and `pdf` are both real: form the ratio
+        Delta,       // a mirror. `weight` is the estimate; MIS must skip it
+        Stochastic,  // a random walk. `weight` is the estimate, and `pdf` is
+                     // a proxy MIS may weight with but chi2 cannot check
+    };
+
+    Kind kind = Kind::Closed;
+
+    // Kept as a question rather than a comparison, because `transport.hpp`
+    // and `chi2.hpp` do not care which of the two pre-formed kinds it is —
+    // only that the division already happened.
+    constexpr bool weight_is_taken() const { return kind != Kind::Closed; }
 
     // A sample that carries no light. Returned rather than an empty optional
     // because "the surface absorbed it" is an outcome the path loop handles
     // the same way it handles everything else: multiply by zero and stop.
     constexpr bool is_black() const {
-        return specular ? weight.is_black() : (!pdf.positive() || f.is_black());
+        return weight_is_taken() ? weight.is_black()
+                                 : (!pdf.positive() || f.is_black());
     }
 };
 

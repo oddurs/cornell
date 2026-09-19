@@ -73,7 +73,7 @@ void print_witnesses() {
     std::printf("  ./cornell spectrum [d65|e|x|y|z|red-wall|green-wall|white-wall]\n");
     std::printf("  ./cornell spec\n");
     std::printf("  ./cornell verify\n"
-                "  ./cornell furnace [--bsdf lambert|conductor] [--rho R] [--alpha A]\n"
+                "  ./cornell furnace [--bsdf lambert|conductor|walk] [--rho R] [--alpha A]\n"
                 "                    [--table] [--no-image]\n"
                 "  ./cornell chi2\n"
                 "  ./cornell converge\n"

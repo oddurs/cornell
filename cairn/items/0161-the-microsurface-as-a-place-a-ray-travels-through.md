@@ -2,8 +2,9 @@
 id: 161
 title: The microsurface as a place a ray travels through
 type: optics
-status: backlog
+status: done
 milestone: v0.7
+assignee: Oddur Sigurdsson
 created: 2026-09-19
 updated: 2026-09-19
 priority: p0
@@ -50,7 +51,25 @@ Smith model does not represent and which a real height field has.
 
 ## Acceptance criteria
 
-- [ ] The interface follows 0160's answer rather than inventing one
-- [ ] The walk reduces to single scattering when it is told to stop at one
+- [x] The interface follows 0160's answer rather than inventing one
+- [x] The walk reduces to single scattering when it is told to stop at one
       bounce, and that is checked against the current model exactly
-- [ ] `./cornell chi2` covers whatever part of it can be covered
+- [x] `./cornell chi2` covers whatever part of it can be covered
+
+## 2026-09-19
+
+Built and measured. Albedo 1.000000000000000 at every roughness and angle - exact rather than converged, because with reflectance 1 the weight never changes and every walk escapes, so the estimator is the constant 1.
+
+Two sign errors, both caught by checking a case whose answer was already known rather than by looking at output. The reflection formula 2(w.m)m - w is for a direction pointing AWAY from the surface; a propagation direction needs the reverse, and the escaping ray's direction of travel IS wi with no negation. With those wrong the walk never escaped upward and the albedo was 0.
+
+The third and worst: smith.hpp's Lambda had no sign. It is derived for directions you can see the surface from, and the walk asks about rays travelling INTO it, where the projection has the other sign and straight down gives exactly -1. Without it the walk still conserved energy and still matched the single-scattering model at normal incidence, and was out by 0.216 at alpha 1 and 60 degrees - plausible everywhere, correct only where the sign cannot matter. Same shape as the 0084 frame bug, found the same way. Lambda is now signed; verify's figures are byte-identical, so it is a capability and not a behaviour change.
+
+An interface problem 0160 missed: sample() gets exactly two variates and a walk needs an unbounded number. Resolved by spending the two on SEEDING a stream, which preserves specular.hpp's stated invariant - a path's draw count must not depend on what it hits, or two paths at the same address diverge. The recovery u * 0x1p32 is exact because next() is next_u32() * 2^-32.
+
+furnace's directional_albedo_by_sampling formed f cos / pdf unconditionally and returned NaN for every row, which was luckier than it sounds: a plausible number would have been believed. It now carries the same branch transport.hpp has.
+
+0087's bounce prediction was WRONG and should be recorded as such. I predicted 'near three, and below it, because a ray that has already bounced is better oriented to leave'. Measured 4.245 at alpha 1 head on, and uncapped the longest of 2^21 walks was 102. The reasoning was backwards - a ray that failed to escape is deeper in, not better aimed.
+
+The contract change from 0160 (specular bool -> three-way Kind) is inert: every instrument printed the same figures before the walk existed.
+
+Cost: furnace --bsdf walk is 11 s against the conductor's 5 s, which is the extra bounces and is the price 0087 said would be paid.

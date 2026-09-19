@@ -103,7 +103,7 @@ public:
     BsdfSample sample(const Vec3& wo, const Wavelengths& lambdas, double, double) const {
         BsdfSample out;
         out.wi = mirror(wo);
-        out.specular = true;
+        out.kind = BsdfSample::Kind::Delta;
 
         // `weight` is R(theta) — the limit of `f · cos / pdf`, derived above.
         // The angle is `wo`'s against the normal, which in this frame is its
