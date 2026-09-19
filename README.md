@@ -258,6 +258,22 @@ blames the masking term. That is the smaller channel. At roughness 1 a fifth
 of the light is masked and **half of it never points outward at all**. A rough
 surface loses light mostly because it is rough enough to reflect into itself.
 
+And it decides the repair. There is a cheap fix in the literature — fit a
+compensation lobe to the measured deficit — and what disqualifies it here is
+not that it is a fit. It is that it puts the energy back without asking where
+it went, and the table above has just demonstrated that the question has a
+specific and surprising answer. So the microsurface stops being a statistical
+abstraction and becomes a place: the rays in those two columns get followed to
+the facet they hit next, and the light comes back because it was followed.
+
+That is not free, and the cost is not mainly speed. A BSDF defined by a random
+walk has no closed form, so `eval` and `pdf` stop being functions and become
+estimators — which collides with the three-method contract this project
+committed to in v0.1, with the chi-squared instrument, and with the multiple
+importance sampling that the third method exists for. Deciding which of those
+gives is its own item, and it is being decided before anything is written
+rather than by whoever hits it first.
+
 Finding that with an instrument built two milestones before the model, rather
 than discovering it in a paper afterwards, is the single best thing this
 project can demonstrate. A check written after the thing it checks is a check
