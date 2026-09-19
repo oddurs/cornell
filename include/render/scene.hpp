@@ -76,6 +76,7 @@
 #include <render/conductor.hpp>
 #include <render/metals.hpp>
 #include <render/specular.hpp>
+#include <render/torrance_sparrow.hpp>
 #include <render/ray.hpp>
 #include <render/sphere.hpp>
 #include <render/spectrum.hpp>
@@ -113,12 +114,18 @@ using GreySpecular = Specular<FlatReflectance>;
 // reflects at each wavelength, with `metals.hpp`'s measured tables supplying
 // the index. There is no colour in any of these three lines, which is the
 // project's whole argument arriving as a type alias.
+// And the rough one, which is the same mirror with the facets no longer
+// agreeing about which way is up. `GreyRough` is the furnace's: reflectance
+// 1 at every wavelength and every angle, so that anything it fails to return
+// is the model losing energy rather than the material absorbing it.
+using GreyRough = TorranceSparrow<FlatReflectance>;
+
 using FlatConductor         = Conductor<FlatIndex>;
 using JohnsonChristyMetal   = Conductor<metal::JohnsonChristy>;
 using RakicMetal            = Conductor<metal::Rakic>;
 
 using Bsdf = std::variant<GreyLambert, SpectralLambert, MeasuredLambert,
-                          GreySpecular, FlatConductor,
+                          GreySpecular, GreyRough, FlatConductor,
                           JohnsonChristyMetal, RakicMetal>;
 
 static_assert(BsdfModel<GreyLambert>,
@@ -128,6 +135,8 @@ static_assert(BsdfModel<SpectralLambert>,
 static_assert(BsdfModel<MeasuredLambert>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<GreySpecular>,
+              "every alternative of Bsdf must satisfy the three-method contract");
+static_assert(BsdfModel<GreyRough>,
               "every alternative of Bsdf must satisfy the three-method contract");
 static_assert(BsdfModel<FlatConductor>,
               "every alternative of Bsdf must satisfy the three-method contract");
