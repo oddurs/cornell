@@ -154,13 +154,12 @@ The thesis.
 
 ## v0.7 — Roughness
 
-`##········` 20% · 2 of 10 done
+`###·······` 30% · 3 of 10 done
 
 A surface is a landscape of tiny mirrors, and what it looks like is a statistical question about how they are oriented and how often they hide each other.
 
 ### backlog
 
-- [ ] [`0083`](https://github.com/oddurs/cornell/blob/main/cairn/items/0083-smith-hpp-derive-the-masking-function-from-the-distribution.md) smith.hpp: derive the masking function from the distribution <sup>optics · p0 · bsdf · thesis · derivation</sup>
 - [ ] [`0084`](https://github.com/oddurs/cornell/blob/main/cairn/items/0084-visible-normal-sampling-with-its-exact-density.md) Visible-normal sampling, with its exact density <sup>optics · p0 · sampling</sup>
 - [ ] [`0085`](https://github.com/oddurs/cornell/blob/main/cairn/items/0085-verify-the-rough-conductor-vanishes-in-the-furnace.md) Verify: the rough conductor vanishes in the furnace <sup>verify · p0 · verification · thesis</sup>
 - [ ] [`0086`](https://github.com/oddurs/cornell/blob/main/cairn/items/0086-it-does-not-vanish-the-missing-multiple-scattering-energy.md) It does not vanish: the missing multiple-scattering energy <sup>bug · p0 · bsdf</sup>
@@ -172,6 +171,7 @@ A surface is a landscape of tiny mirrors, and what it looks like is a statistica
 ### done
 
 - [x] [`0082`](https://github.com/oddurs/cornell/blob/main/cairn/items/0082-trowbridge-reitz-hpp-named-for-the-people-who-published-it.md) trowbridge_reitz.hpp, named for the people who published it <sup>optics · p0 · bsdf</sup>
+- [x] [`0083`](https://github.com/oddurs/cornell/blob/main/cairn/items/0083-smith-hpp-derive-the-masking-function-from-the-distribution.md) smith.hpp: derive the masking function from the distribution <sup>optics · p0 · bsdf · thesis · derivation</sup>
 - [x] [`0159`](https://github.com/oddurs/cornell/blob/main/cairn/items/0159-the-microfacet-section-says-things-the-sheet-does-not-print.md) The microfacet section says things the sheet does not print <sup>bug · p1 · verification</sup>
 
 ## v0.8 — Both ends of the path
