@@ -112,9 +112,25 @@
 //
 // None of it is absorption — the reflectance in that table is 1 at every
 // wavelength and every angle. It is the defining flaw of single-scattering
-// microfacet models, it is in almost every renderer ever shipped, and what to
-// do about it is item 0087. This file was written knowing it would fail the
-// furnace, and it does: four tenths of the light comes back at roughness 1.
+// microfacet models and it is in almost every renderer ever shipped. This file
+// was written knowing it would fail the furnace, and it does: four tenths of
+// the light comes back at roughness 1.
+//
+// Item 0087 decided what to do, and the decision is worth knowing while
+// reading this file, because it says what this model is going to become.
+// Rather than fitting a lobe to cancel the deficit, the microsurface becomes
+// a place a ray travels through: the rays in the two columns above are
+// followed to the facet they hit next, and the energy comes back because the
+// light was followed rather than because a curve was fitted to how much of it
+// went missing. Heitz, Hanika, d'Eon and Dachsbacher, 2016; items 0160, 0161
+// and 0162.
+//
+// The cost is not mainly speed. A BSDF defined by a random walk has no closed
+// form, so `eval` and `pdf` stop being functions and become estimators, and
+// that collides with `bsdf.hpp`'s three-method contract, with `chi2`'s
+// quadrature, and with the multiple importance sampling `pdf` was separated
+// out for in the first place. Which of those gives is item 0160, and it is
+// deliberately being decided before anything is written.
 //
 // **Transmission.** A rough dielectric refracts through the same facets and
 // has a second lobe, which is item 0109 and v0.9's business. This is a
