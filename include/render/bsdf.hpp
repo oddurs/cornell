@@ -203,6 +203,55 @@ concept BsdfModel = requires(const T& bsdf, Vec3 wo, Vec3 wi, double u,
 // `eval` and `pdf` returning zero is what makes the last two safe by default.
 // A caller that forgets the flag gets zero rather than a plausible number,
 // which is the failure that shows up rather than the one that does not.
+//
+// ── A third kind of lobe, and what it does to `pdf` ──────────────────────
+//
+// Item 0160 decided this before the material that needs it was written, on
+// the grounds that a contract settled after its implementation gets the
+// contract the implementation happened to need.
+//
+// v0.7's repair for the missing energy — item 0087 — is a random walk on the
+// microsurface, and a BSDF defined by a walk has no closed form. Its weight
+// arrives already formed, exactly as a mirror's does and for the same reason:
+// the density was never evaluated, so there is no ratio to write. That half
+// of the convention above carries over unchanged.
+//
+// The other half does not. A delta lobe is skipped by MIS because a delta
+// cannot be weighted against a finite density. A stochastic lobe is finite,
+// scatters everywhere, and carries most of the light off a rough metal —
+// skipping it would leave a rough conductor with no BSDF strategy at all,
+// which is the strategy that matters most when the lamp is small.
+//
+// So `pdf` has to be answerable for it, and the way out is that `pdf` has
+// been doing two jobs that have never needed separating, because for every
+// material in the project so far they are the same number:
+//
+//      the density the estimator divides by
+//      the density multiple importance sampling weights with
+//
+// A walk needs only the second, and the second has a property the first does
+// not: **it does not have to be correct, it has to be the same one every
+// strategy uses.** Veach's condition for an unbiased combination is that the
+// weights sum to one, not that they are good ones. Measured on a
+// one-dimensional integral with two strategies, a proxy density wrong by a
+// factor of two costs a tenth of a standard deviation and no bias; one bad
+// enough to give its strategy almost no weight anywhere costs 1.8 times the
+// standard deviation and still no bias. Using a proxy on one side only is
+// wrong by 815 standard errors, silently, and looks like a slightly dark
+// material.
+//
+// So `pdf` stays a function returning a deterministic number — it is never
+// an estimate, and that is the line this project will not cross — and what it
+// means becomes *the density to weight with when strategies are combined*.
+// For everything written so far that is still the density `sample` drew from,
+// and `./cornell chi2` checks it. For the walk it is the single-scattering
+// density standing in as a proxy, `chi2` cannot check it, and the furnace
+// checks the thing that matters instead. Item 0162.
+//
+// `specular` therefore stops being a `bool` when the walk arrives. There are
+// three kinds of sample — divide by `pdf`, use `weight` and skip in MIS, use
+// `weight` and weight in MIS with a proxy — and a two-valued flag can only
+// name two of them.
 
 // `pdf` is the exception, and the asymmetry is worth a sentence. A density
 // over directions does not depend on wavelength: this project samples a
