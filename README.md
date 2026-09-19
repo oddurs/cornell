@@ -197,7 +197,8 @@ nothing is an acceptance criterion rather than a boast.
 
 The roadmap's most deliberate feature is its ordering. The white furnace test,
 the chi-squared sampling test and the convergence plot are built at **v0.5**.
-The microfacet model that will fail all three arrives at **v0.7**.
+The microfacet model they were built to examine arrives at **v0.7**, and one
+of the three catches it.
 
 That failure is the point.
 
@@ -206,6 +207,12 @@ must vanish — render exactly as white as the background, because no energy was
 absorbed. The standard single-scattering microfacet model does not. It loses
 the light that bounces from one facet to another, the deficit grows with
 roughness, and almost every renderer ever shipped has it.
+
+The other two pass, and that is the discrimination worth having rather than a
+consolation. The sampler agrees with its own density at every roughness from
+0.001 to 1, and the estimator converges at the rate it should; what is wrong
+is the model, not the arithmetic, and three instruments that all failed
+together would not have been able to say so.
 
 Finding that with an instrument built two milestones before the model, rather
 than discovering it in a paper afterwards, is the single best thing this

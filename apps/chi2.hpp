@@ -88,6 +88,7 @@
 #include <render/lambert.hpp>
 #include <render/sampler.hpp>
 #include <render/scene.hpp>
+#include <render/visible_normals.hpp>
 #include <render/si.hpp>
 
 namespace app {
@@ -199,7 +200,18 @@ inline int bin_of(const Vec3& w) {
 // a rectangle, by a midpoint rule on a sub-grid.
 //
 // `sample` is not called anywhere in here. That is what makes this a test.
-inline constexpr int sub_cells = 6;     // per axis, per bin
+// Twelve rather than the six this started with, and the difference is a
+// density with an edge in it. Lambert's is smooth over the whole hemisphere,
+// so six sub-samples per axis integrate a cell to well under the noise. A
+// visible-normal density stops dead where `wo·m` changes sign, and that
+// boundary is a great circle that does not follow the grid — so a cell it
+// clips can have every one of thirty-six sub-samples land in the dead half
+// and be recorded as impossible, while the sampler cheerfully draws into the
+// sliver that is alive. That is a false failure of the strictest kind: the
+// test reporting that a correct sampler produced a direction of probability
+// zero. Twelve makes it go away and twenty changes the p-values in the fourth
+// decimal, so twelve is converged rather than chosen.
+inline constexpr int sub_cells = 12;     // per axis, per bin
 
 template <class Model>
 std::vector<double> expected_fractions(const Model& model, const Vec3& wo) {
@@ -383,6 +395,111 @@ inline constexpr std::uint64_t seed_same = 0xd1b5'4a32'd192'ed03;
 // makes Pearson's statistic chi-squared.
 inline constexpr double minimum_expected = 5.0;
 
+// ── Testing a lobe narrower than the histogram ───────────────────────────
+//
+// Item 0084 asks for this test to pass from roughness 0.001 to 1, and at the
+// bottom of that range the histogram above cannot be used at all. The reason
+// is worth stating plainly, because it is a property of the instrument rather
+// than of the model, and the instrument is the thing this file is.
+//
+// The bins are uniform in `mu` and `phi` over the whole sphere: 32 by 64, so
+// a bin is about 0.06 wide in `mu`. At roughness 0.001 the reflected lobe is
+// about 0.002 radians across, which near the pole is two parts in a million
+// of `mu`. Every one of a million draws lands in one bin, and the quadrature
+// that is supposed to predict that bin steps straight over the lobe and
+// reports a density of nearly nothing. Measured, before this was written: the
+// integrated density came to 0.00094 where it should have been 1, and the
+// statistic to 1.1e+09. None of that is evidence about the sampler. It is a
+// grid being asked to resolve something ten thousand times finer than itself,
+// and no sub-division fixes it — the lobe narrows faster than any fixed grid
+// can follow.
+//
+// So the test is done in the coordinates the model is actually written in.
+// `visible_normals.hpp` samples a facet normal by flattening the ellipsoid
+// into a sphere, and in that flattened frame the distribution has a fixed
+// width at *every* roughness. Stretching the sampled normals back into it
+// turns a lobe of 0.002 radians into one that fills a good part of the
+// hemisphere, which 32 by 64 bins resolve comfortably.
+//
+// ── The factor is not 1/alpha, deliberately ──────────────────────────────
+//
+// Stretching by exactly `1/alpha` would undo precisely what the sampler did.
+// The normals would land back on the sphere they were drawn from, the
+// roughness would cancel out of the sample path entirely, and a routine that
+// unstretched by `alpha²` — a real and easy mistake — would sail through
+// because the test had helpfully applied the matching error in reverse.
+//
+// So the stretch leaves a residue. It takes the microsurface to roughness 0.8
+// rather than to 1, which is wide enough for the grid and close enough to
+// keep the arithmetic well conditioned, and nothing cancels: the sample is
+// stretched by `0.8/alpha` and the density is carried across by a Jacobian
+// derived below, and the two have to meet in the middle.
+//
+// The density is transformed rather than re-derived. For a linear map `M`
+// followed by a renormalisation, the solid angle a patch occupies changes by
+//
+//      dw' / dw = |det M| / ||M w||³
+//
+// which for `M = diag(s, s, 1)` is `s² / ||M m||³`, and dividing the
+// visible-normal density by it is the whole of the change of variables. No
+// property of Trowbridge-Reitz is assumed anywhere in it.
+//
+// What this does not test is the unstretch by itself; that is covered by the
+// direct rows further down, which run in the domain a path really travels in
+// and have resolution from roughness 0.1 upwards.
+
+// The residue, named rather than spelled inline, because the whole argument
+// above turns on it not being 1.
+inline constexpr double residual_alpha = 0.8;
+
+struct StretchedNormals {
+    Smith smith{TrowbridgeReitz{0.0}};
+
+    // The tangential multiplier. A microsurface of roughness `alpha`,
+    // flattened by this, is one of roughness `residual_alpha`.
+    double scale() const { return residual_alpha / smith.distribution().alpha(); }
+
+    Vec3 stretch(const Vec3& m) const {
+        const double s = scale();
+        return normalize(Vec3{s * m.x, s * m.y, m.z}).vec();
+    }
+
+    Vec3 unstretch(const Vec3& stretched) const {
+        const double s = 1.0 / scale();
+        return normalize(Vec3{s * stretched.x, s * stretched.y, stretched.z}).vec();
+    }
+
+    // The sampler under test, with its answer carried into the stretched
+    // frame. Nothing here knows what the density is.
+    BsdfSample sample(const Vec3& wo, const Wavelengths&, double u, double v) const {
+        const Vec3 drawn = stretch(sample_visible_normal(smith.distribution(), wo, u, v));
+
+        BsdfSample out;
+        out.wi = drawn;
+        out.pdf = pdf(wo, drawn);
+        for (int i = 0; i < spectral_samples; ++i) out.f[i] = 1.0;
+        return out;
+    }
+
+    // And the density, carried the other way. Nothing here knows what the
+    // sampler does.
+    SolidAngleDensity pdf(const Vec3& wo, const Vec3& stretched) const {
+        if (stretched.z <= 0.0) return SolidAngleDensity{};
+
+        const Vec3 m = unstretch(stretched);
+        const double density = visible_normal_density(smith, wo, m);
+        if (density <= 0.0) return SolidAngleDensity{};
+
+        const double s = scale();
+        const double tangential = m.x * m.x + m.y * m.y;
+        const double stretched_length = std::sqrt(s * s * tangential + m.z * m.z);
+        const double jacobian =
+            s * s / (stretched_length * stretched_length * stretched_length);
+
+        return SolidAngleDensity{density / jacobian};
+    }
+};
+
 template <class Model>
 Result test(const Model& model, const Vec3& wo, int draws, std::uint64_t seed) {
     Result out;
@@ -528,6 +645,127 @@ inline int chi2() {
 
     std::printf("\n  * wo in the lower hemisphere: the sampler follows it, and must.\n");
 
+    // ── The rough conductor, in the half vector's own frame ──────────────
+    //
+    // Item 0084's criterion, and the reason the model above exists. Every
+    // roughness from 0.001 to 1, tested where the distribution has a width
+    // the histogram can see.
+    {
+        std::printf("\n  Visible-normal sampling, stretched to roughness %.1f so that a lobe\n"
+                    "  of any width lands on a grid of one width. The stretch is not the\n"
+                    "  sampler's own, so nothing cancels; see above.\n\n", residual_alpha);
+
+        std::printf("  %-20s %8s  %9s  %5s  %10s  %10s  %s\n",
+                    "alpha", "theta_o", "chi2", "dof", "chi2/dof", "p", "");
+
+        double at_normal_incidence = -1.0;
+        double normal_spread = 0.0;
+        bool normal_rows_agree = true;
+
+        // The seed is keyed on the angle and not on the roughness, which is
+        // the one place in this file that rows deliberately share a stream.
+        // The identity checked below is between four rows that must draw the
+        // same directions; given four different seeds they would differ for
+        // an uninteresting reason and the check would be untestable.
+        for (const double alpha : {0.001, 0.010, 0.100, 1.000}) {
+            int angle_index = 0;
+            for (const double degrees : {0.0, 45.0, 80.0}) {
+                const double theta = degrees * si::pi / 180.0;
+                const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+
+                const StretchedNormals model{Smith{TrowbridgeReitz{alpha}}};
+                const Result r = test(model, wo, draws,
+                                      seed_base * (std::uint64_t(++angle_index) + 100));
+
+                const bool ok = r.p > 0.01 && r.impossible == 0;
+                if (!ok) ++failures;
+
+                // At normal incidence the stretch leaves nothing behind.
+                // `wo` is the axis it stretches about, the sampler multiplies
+                // the tangential components by `alpha` and this model divides
+                // them by `alpha/0.8` again, and the roughness cancels out of
+                // the algebra entirely — so all four rows are the same
+                // problem and must produce the same statistic.
+                //
+                // Not the same bits, though, and the gap between those two
+                // sentences is the interesting part. The cancellation is
+                // exact in algebra and not in arithmetic: multiplying by
+                // `alpha` and dividing by it rounds, so 87% of a million
+                // draws land on *different doubles* at different roughnesses.
+                // They are different by an ulp or two, almost never enough to
+                // carry a sample across a bin edge, so the histograms come out
+                // the same and the statistic agrees to two parts in 10^15.
+                if (degrees == 0.0) {
+                    if (at_normal_incidence < 0.0) at_normal_incidence = r.statistic;
+                    else {
+                        const double apart = std::fabs(r.statistic - at_normal_incidence)
+                                           / at_normal_incidence;
+                        normal_spread = std::fmax(normal_spread, apart);
+                        normal_rows_agree = normal_rows_agree && apart < 1e-12;
+                    }
+                }
+
+                char label[32];
+                std::snprintf(label, sizeof label, "alpha %.3f", alpha);
+                std::printf("  %-20s %5.0f%s  %9.2f  %5d  %10.4f  %10.4f  %s\n",
+                            label, degrees, "  ", r.statistic, r.degrees_of_freedom,
+                            r.statistic / double(r.degrees_of_freedom), r.p,
+                            ok ? "pass" : (r.impossible > 0 ? "IMPOSSIBLE DRAW" : "FAIL"));
+            }
+        }
+
+        if (!normal_rows_agree) ++failures;
+        std::printf("\n  At normal incidence the roughness cancels out of the stretch, so\n"
+                    "  those four rows are one problem asked four times and must give\n"
+                    "  one statistic. They agree to %.1e, relative — which is round-off\n"
+                    "  and not algebra: the same cancellation that is exact on paper\n"
+                    "  leaves 87%% of the drawn directions on different doubles, and\n"
+                    "  almost none of them on the wrong side of a bin edge. %s.\n",
+                    normal_spread, normal_rows_agree ? "They hold" : "THEY DO NOT HOLD");
+    }
+
+    // ── And the same BSDF, undisguised ───────────────────────────────────
+    //
+    // The stretch is a change of coordinates, and a change of coordinates is
+    // a thing that can be wrong. These rows use no adapter: the rough
+    // conductor, sampled and evaluated exactly as `transport.hpp` will, in
+    // the directions a path really leaves along. They run from roughness 0.1
+    // up, because below that the grid has the resolution problem described at
+    // length above, and a row that cannot resolve its own subject is not
+    // evidence and is not printed as though it were.
+    {
+        std::printf("\n  The same BSDF with no stretch, in the domain a path travels in.\n\n");
+        std::printf("  %-20s %8s  %9s  %5s  %10s  %10s  %s\n",
+                    "alpha", "theta_o", "chi2", "dof", "chi2/dof", "p", "");
+
+        int row_index = 0;
+        for (const double alpha : {0.100, 0.300, 1.000}) {
+            for (const double degrees : {0.0, 45.0, 80.0}) {
+                const double theta = degrees * si::pi / 180.0;
+                const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+
+                const Bsdf rough{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
+                const Result r = test(Dispatch{rough}, wo, draws,
+                                      seed_base * (std::uint64_t(++row_index) + 200));
+
+                const bool ok = r.p > 0.01 && r.impossible == 0;
+                if (!ok) ++failures;
+
+                char label[32];
+                std::snprintf(label, sizeof label, "alpha %.3f", alpha);
+                std::printf("  %-20s %5.0f%s  %9.2f  %5d  %10.4f  %10.4f  %s\n",
+                            label, degrees, "  ", r.statistic, r.degrees_of_freedom,
+                            r.statistic / double(r.degrees_of_freedom), r.p,
+                            ok ? "pass" : (r.impossible > 0 ? "IMPOSSIBLE DRAW" : "FAIL"));
+            }
+        }
+
+        std::printf("\n  The density here integrates to less than one over the hemisphere,\n"
+                    "  and that is the model rather than an error: a facet can reflect\n"
+                    "  into the ground, and such a draw carries no light. The histogram\n"
+                    "  and the quadrature both leave it out, so they still agree.\n");
+    }
+
     // ── Two things a p-value can only hint at ────────────────────────────
     //
     // Both of these would show up above as suspiciously equal chi-squareds,
@@ -645,6 +883,80 @@ inline int chi2() {
             std::printf("\n  Both refused. A two-percent error in a density is invisible in an\n"
                         "  image and survives the furnace; it does not survive this.\n");
         }
+    }
+
+    // ── A third, which belongs to v0.7's material ────────────────────────
+    //
+    // House rule 3 says the estimator is written out as the ratio at the
+    // point of use, and never cancelled inside a sampling routine. The rough
+    // conductor is the strongest case the project has for that rule, because
+    // the cancellation is spectacular and the temptation is correspondingly
+    // large.
+    //
+    // Write it out. The BRDF is `F D G₂ / (4 cos_o cos_i)`, the density is
+    // `G₁ ⟨wo·h⟩ D / (cos_o · 4 (wo·h))`, and the estimator multiplies the
+    // first by `cos_i` and divides by the second:
+    //
+    //      f cos_i / pdf  =  F G₂ / G₁
+    //
+    // `D` is gone. Both cosines are gone. The 4 is gone. What is left is the
+    // Fresnel term times the fraction of the visible facets that can also see
+    // the light — which is a sentence about shadowing, and is bounded by one
+    // whatever the roughness is.
+    //
+    // A renderer that returns `F G₂ / G₁` from `sample` computes exactly the
+    // same images, faster, and can never be given multiple importance
+    // sampling without being rewritten, because `pdf` no longer exists to be
+    // asked. So this project writes the divides and checks that the answer is
+    // the one the algebra promises.
+    {
+        const Wavelengths lambdas = Wavelengths::sample(0.5);
+
+        long compared = 0;
+        double worst = 0.0;
+        double largest_weight = 0.0;
+
+        for (const double alpha : {0.05, 0.3, 1.0}) {
+            const TrowbridgeReitz distribution{alpha};
+            const Smith smith{distribution};
+            const GreyRough rough{FlatReflectance{1.0}, distribution};
+
+            for (int i = 0; i < (1 << 16); ++i) {
+                Sampler sampler{seed_same, std::uint64_t(i)};
+                const auto [u, v] = sampler.next2();
+
+                // A different `wo` per draw, so that this is a statement
+                // about the model rather than about one angle.
+                const double theta = 1.5 * (double(i % 1024) + 0.5) / 1024.0;
+                const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+
+                const BsdfSample drawn = rough.sample(wo, lambdas, u, v);
+                if (drawn.is_black()) continue;
+
+                // The ratio, in full, exactly as `transport.hpp` forms it.
+                const Reflectance estimator = drawn.f / drawn.pdf;
+                const double weight = estimator[0] * std::fabs(drawn.wi.z);
+
+                // And what the algebra says it has to be. `F` is 1 here, so
+                // this is the shadowing ratio alone.
+                const Vec3 h = normalize(wo + drawn.wi).vec();
+                const double ratio = smith.masking_shadowing(wo, drawn.wi, h)
+                                   / smith.masking(wo, h);
+
+                ++compared;
+                worst = std::fmax(worst, std::fabs(weight - ratio));
+                largest_weight = std::fmax(largest_weight, weight);
+            }
+        }
+
+        if (!(worst < 1e-12)) ++failures;
+
+        std::printf("\n  The microfacet estimator, written out in full and compared against\n"
+                    "  the G2/G1 the algebra collapses it to, over %ld draws at three\n"
+                    "  roughnesses:  worst disagreement %.2e.\n", compared, worst);
+        std::printf("  No draw weighs more than %.6f, which is the same statement: a\n"
+                    "  facet you can see and the light can see is at most all of them.\n",
+                    largest_weight);
     }
 
     std::printf("\n%s\n", failures == 0
