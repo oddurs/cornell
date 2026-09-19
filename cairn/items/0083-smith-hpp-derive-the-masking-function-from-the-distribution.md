@@ -2,13 +2,14 @@
 id: 83
 title: 'smith.hpp: derive the masking function from the distribution'
 type: optics
-status: backlog
+status: done
 milestone: v0.7
+assignee: Oddur Sigurdsson
 labels:
 - thesis
 - derivation
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-18
 priority: p0
 area: bsdf
 effort: l
@@ -44,6 +45,16 @@ the thing it improves on.
 
 ## Acceptance criteria
 
-- [ ] The projection constraint is stated and the derivation follows it
-- [ ] No menu of G functions exists in the codebase
-- [ ] The white furnace test is what confirms the derivation is right
+- [x] The projection constraint is stated and the derivation follows it
+- [x] No menu of G functions exists in the codebase
+- [x] The white furnace test is what confirms the derivation is right
+
+## 2026-09-18
+
+Lambda = (sqrt(1 + alpha^2 tan^2 theta) - 1)/2, derived in slope space from the covering requirement cos(theta_v) = integral G1 <v.m> D(m) dm. Every step checked numerically before it was written as prose: the marginal slope density alpha^2/(2(alpha^2+x^2)^{3/2}) against a 2D quadrature to 1e-9, and the closed form against A-/cos(theta) to 3e-8.
+
+On criterion 3, precisely: what is on the sheet is Heitz's WEAK white furnace test (masking but no shadowing, every Fresnel factor 1), which is exactly what confirms G1 and which the derivation must satisfy. The full white furnace on a rough conductor needs the BRDF from 0084 and is item 0085; it will fail, and 0086 is why. The weak test integrates over the WHOLE SPHERE of wi, not the hemisphere - the facets reflecting below the horizon still block light, and over the hemisphere alone it comes to 0.50 at alpha 1, which cost an hour before the domain was the answer.
+
+It is the only Monte Carlo row on the sheet, deliberately: the integrand jumps where the half vector crosses the horizon, so a tensor-product midpoint rule is first order there and at 85 degrees its residual sticks at 1.2e-3 from 256 cells through 1024 because the same grid lines straddle the cliff every time.
+
+Criterion 2: the only masking function in include/render is this one. Beckmann's Lambda exists in verify.hpp as a liar, alongside HalfADensity and MisMeasured, and being caught is its whole job - it is the best demonstration in the project that G follows from D, because it is a correct function paired with the wrong distribution and looks like nothing at all.

@@ -29,6 +29,7 @@
 #include <render/lambert.hpp>
 #include <render/schlick.hpp>
 #include <render/sampler.hpp>
+#include <render/smith.hpp>
 #include <render/trowbridge_reitz.hpp>
 #include <render/scene.hpp>
 #include <render/si.hpp>
@@ -961,6 +962,304 @@ inline bool the_microfacet_distribution_covers_the_surface_it_models() {
     return held;
 }
 
+    // Item 0083. The masking function is not a choice, and this is where that
+    // stops being a claim in a comment.
+    //
+    // `smith.hpp` derives Lambda from one requirement — a microsurface has to
+    // cover the macrosurface from every direction, not only from above — and
+    // the rows below are that requirement, integrated numerically, with no
+    // algebra anywhere in the quadrature. One pass over the hemisphere of
+    // facet normals accumulates the facets facing `v` and the facets facing
+    // away, and those two sums answer both questions at once:
+    //
+    //      Lambda   is the back-facing sum over cos(theta_v), which is what
+    //               the closed form has to reproduce
+    //      the      is the front-facing sum times G₁, which has to come to
+    //      covering cos(theta_v) exactly
+    //
+    // The liars at the bottom are the point of the section. One is a renderer
+    // that forgot G altogether, which is the obvious mistake. The other is
+    // Beckmann's Lambda — a correct, published, widely used masking function
+    // — applied to Trowbridge-Reitz's D, which is the mistake that looks like
+    // nothing at all and is the one Heitz's paper is about.
+inline bool the_masking_function_follows_from_the_distribution() {
+    using namespace render;
+    bool held = true;
+
+    std::printf("\nThe masking function follows from the distribution, and a borrowed\n"
+                "one does not fit.\n\n"
+                "  %-22s %12s %11s %11s %8s\n",
+                "", "Lambda", "vs its sum", "covering", "at h/2");
+
+    constexpr int cells = 512;
+
+    // The two projected areas, from one sweep. `A_plus` is what faces `v` and
+    // `A_minus` is the magnitude of what faces away; the derivation in
+    // `smith.hpp` is about nothing else.
+    struct Projected { double facing = 0.0; double away = 0.0; };
+
+    const auto sweep = [](const TrowbridgeReitz& d, const Vec3& v, int n) {
+        const double theta_width = (si::pi / 2.0) / double(n);
+        const double phi_width = si::two_pi / double(n);
+        Projected out;
+
+        for (int i = 0; i < n; ++i) {
+            const double theta = theta_width * (double(i) + 0.5);
+            const double cos_theta = std::cos(theta);
+            const double sin_theta = std::sin(theta);
+            for (int j = 0; j < n; ++j) {
+                const double phi = phi_width * (double(j) + 0.5);
+                const Vec3 m{sin_theta * std::cos(phi), sin_theta * std::sin(phi), cos_theta};
+                const double projection = dot(v, m) * d.d(m) * sin_theta;
+                if (projection > 0.0) out.facing += projection;
+                else out.away -= projection;
+            }
+        }
+        out.facing *= theta_width * phi_width;
+        out.away *= theta_width * phi_width;
+        return out;
+    };
+
+    const auto direction = [](double degrees) {
+        const double theta = degrees * si::pi / 180.0;
+        return Vec3{std::sin(theta), 0.0, std::cos(theta)};
+    };
+
+    for (const double alpha : {0.30, 1.00}) {
+        const TrowbridgeReitz distribution{alpha};
+        const Smith smith{distribution};
+
+        for (const double degrees : {15.0, 45.0, 75.0}) {
+            const Vec3 v = direction(degrees);
+
+            const Projected coarse = sweep(distribution, v, cells);
+            const Projected fine = sweep(distribution, v, 2 * cells);
+
+            // The claim Lambda is: the back-facing area per unit of projected
+            // macrosurface. The closed form knows nothing about this sum.
+            const double lambda_measured = coarse.away / v.z;
+            const double lambda_closed = smith.lambda(v);
+
+            // And the requirement it was derived from. G₁ is constant over
+            // the facets that face `v`, so it multiplies the front-facing
+            // sum, and the product has to be the macroscopic projection.
+            const double covering = coarse.facing / (1.0 + lambda_closed);
+            const double covering_fine = fine.facing / (1.0 + lambda_closed);
+
+            const double residual = covering - v.z;
+            const double ratio = std::fabs(residual) / std::fabs(covering_fine - v.z);
+
+            // The same bound as the distribution's own section, and for the
+            // same reason: this is a midpoint rule on a lobe of width alpha,
+            // so its error is h²/alpha² up to a constant left as headroom.
+            const double h = (si::pi / 2.0) / double(cells);
+            const double tolerance = (h * h) / (alpha * alpha);
+
+            const bool ok = std::fabs(lambda_measured - lambda_closed) < tolerance
+                         && std::fabs(residual) < tolerance
+                         && ratio > 3.5 && ratio < 4.5;
+            held = held && ok;
+
+            char label[64];
+            std::snprintf(label, sizeof label, "alpha %.2f, %2.0f deg", alpha, degrees);
+            std::printf("  %-22s %12.9f %+11.2e %+11.2e %8.2f   %s\n",
+                        label, lambda_closed, lambda_measured - lambda_closed,
+                        residual, ratio, ok ? "agree" : "DISAGREE");
+        }
+    }
+
+    std::printf("\n  The Lambda column is the closed form; it agrees with the sum it\n"
+                "  was derived from to better than the quadrature's own error, and\n"
+                "  the covering column is what the derivation required. Both fall\n"
+                "  by four when the spacing is halved, so what is left in either is\n"
+                "  the quadrature rather than the model.\n");
+
+    // The same identity in the variables a BRDF works in.
+    //
+    // A path tracer never integrates over facet normals. It integrates over
+    // outgoing directions, and reaches the distribution through the half
+    // vector, so the identity above turns into Heitz's weak white furnace
+    // test: with the masking term but no shadowing term, and with every
+    // Fresnel factor set to one, a single-scattering microfacet BRDF must
+    // reflect exactly the light that arrives.
+    //
+    //      ∫ D(h) G₁(wo, h) / (4 |wo·n|) dwi = 1
+    //
+    // Over the whole sphere of `wi`, which is the part that is easy to get
+    // wrong and worth saying out loud: the facets that reflect `wo` below the
+    // horizon are still facets, they still block light, and leaving their
+    // half of the integral out is not a refinement but a different claim.
+    //
+    // It is estimated rather than integrated on a grid, which is the only
+    // Monte Carlo row on this sheet. The integrand has a jump in it — the
+    // half vector crosses the horizon and `D` falls off a cliff — and a
+    // tensor-product midpoint rule on a discontinuity is first order rather
+    // than second, so its error does not fall by four and at some angles it
+    // does not fall at all: measured once, when this row was being decided,
+    // it sat at 1.2e-03 at 256 cells, 512 and 1024 alike, because the same
+    // grid lines straddle the cliff every time. An estimator has no grid to align with the discontinuity. Its
+    // error is a standard error, it is quoted beside the estimate, and the
+    // row holds if the estimate is within three of them of one.
+    std::printf("\n  %-22s %12s %11s %11s %8s\n",
+                "", "estimate", "error", "", "std errs");
+
+    for (const double alpha : {0.30, 1.00}) {
+        const TrowbridgeReitz distribution{alpha};
+        const Smith smith{distribution};
+
+        for (const double degrees : {30.0, 85.0}) {
+            const Vec3 wo = direction(degrees);
+
+            constexpr long draws = 1L << 21;
+            // Smith's year, and a stream per row so that two rows cannot
+            // agree by having drawn the same numbers.
+            Sampler sampler{1967u, static_cast<std::uint64_t>(degrees + 1000.0 * alpha)};
+            double sum = 0.0;
+            double sum_of_squares = 0.0;
+
+            for (long k = 0; k < draws; ++k) {
+                // Uniform over the sphere, so the density is 1/(4 pi) and the
+                // estimate is the integrand over it. House rule 3: the ratio
+                // is written out rather than cancelled, even here.
+                const auto [u, v] = sampler.next2();
+                const double z = 1.0 - 2.0 * u;
+                const double r = std::sqrt(std::fmax(0.0, 1.0 - z * z));
+                const double phi = si::two_pi * v;
+                const Vec3 wi{r * std::cos(phi), r * std::sin(phi), z};
+
+                const Vec3 sum_of_directions{wo.x + wi.x, wo.y + wi.y, wo.z + wi.z};
+                const double length = std::sqrt(dot(sum_of_directions, sum_of_directions));
+
+                double integrand = 0.0;
+                if (length > 0.0) {
+                    const Vec3 h = sum_of_directions * (1.0 / length);
+                    integrand = distribution.d(h) * smith.masking(wo, h)
+                              / (4.0 * std::fabs(wo.z));
+                }
+
+                const double density = 1.0 / (2.0 * si::two_pi);
+                const double estimate = integrand / density;
+
+                sum += estimate;
+                sum_of_squares += estimate * estimate;
+            }
+
+            const double mean = sum / double(draws);
+            const double variance = (sum_of_squares / double(draws) - mean * mean)
+                                  / double(draws);
+            const double standard_error = std::sqrt(std::fmax(0.0, variance));
+            const double off_by = std::fabs(mean - 1.0) / standard_error;
+
+            const bool ok = off_by < 3.0;
+            held = held && ok;
+
+            char label[64];
+            std::snprintf(label, sizeof label, "furnace %.2f, %2.0f deg",
+                          alpha, degrees);
+            std::printf("  %-22s %12.8f %+11.2e %11s %8.2f   %s\n",
+                        label, mean, mean - 1.0, "", off_by, ok ? "agree" : "DISAGREE");
+        }
+    }
+
+    // The liars, which are the section's argument.
+    {
+        std::printf("\n  %-22s %12s %11s %11s %8s\n", "", "", "", "covering", "");
+
+        const double alpha = 1.0;
+        const TrowbridgeReitz distribution{alpha};
+        const Vec3 v = direction(75.0);
+        const Projected areas = sweep(distribution, v, cells);
+
+        // A renderer that forgot G. Every facet facing `v` is counted as
+        // visible, so the microsurface covers more than the surface it stands
+        // on and the light it reflects was never there.
+        {
+            const double covering = areas.facing;           // G1 = 1
+            const bool caught = std::fabs(covering - v.z) > 1e-3;
+            held = held && caught;
+            std::printf("  %-22s %12s %11s %+11.2e %8s   %s\n",
+                        "no masking at all", "", "", covering - v.z, "",
+                        caught ? "caught" : "ESCAPED");
+        }
+
+        // And the one worth the section. Beckmann's Lambda is not wrong; it
+        // is the exact solution of the same requirement for a *Gaussian*
+        // distribution of slopes, it is in Cook and Torrance's paper and in a
+        // great many renderers, and against this D it does not cover the
+        // surface. Nothing about it looks like a bug.
+        {
+            const double a = 1.0 / (alpha * std::sqrt(v.x * v.x + v.y * v.y) / v.z);
+            const double beckmann = (std::erf(a) - 1.0) / 2.0
+                                  + std::exp(-a * a) / (2.0 * a * std::sqrt(si::pi));
+
+            const double covering = areas.facing / (1.0 + beckmann);
+            const bool caught = std::fabs(covering - v.z) > 1e-3;
+            held = held && caught;
+            std::printf("  %-22s %12s %11s %+11.2e %8s   %s\n",
+                        "Beckmann's, against D", "", "", covering - v.z, "",
+                        caught ? "caught" : "ESCAPED");
+        }
+    }
+
+    // Height correlation, which is a modelling choice rather than a liar, so
+    // it is printed as a difference rather than as a verdict — except for the
+    // one thing about it that is a claim: correlating can only ever find more
+    // visible surface than assuming independence, so the height-correlated
+    // form must be at least the separable one at every pair of angles.
+    {
+        std::printf("\n  %-22s %12s %11s %11s %8s\n",
+                    "", "correlated", "separable", "", "ratio");
+
+        const std::pair<double, double> cases[] = {
+            {0.10, 85.0}, {0.50, 85.0}, {1.00, 70.0}, {1.00, 85.0},
+        };
+
+        for (const auto& [alpha, degrees] : cases) {
+            const Smith smith{TrowbridgeReitz{alpha}};
+            const Vec3 w = direction(degrees);
+            const Vec3 m{0.0, 0.0, 1.0};
+
+            const double correlated = smith.masking_shadowing(w, w, m);
+            const double separable = smith.masking(w, m) * smith.masking(w, m);
+
+            char label[64];
+            std::snprintf(label, sizeof label, "alpha %.2f, %2.0f deg", alpha, degrees);
+            std::printf("  %-22s %12.6f %11.6f %11s %8.3f\n",
+                        label, correlated, separable, "", correlated / separable);
+        }
+
+        bool never_smaller = true;
+        double closest = 1.0;
+        for (const double alpha : {0.05, 0.20, 0.50, 1.00}) {
+            const Smith smith{TrowbridgeReitz{alpha}};
+            const Vec3 m{0.0, 0.0, 1.0};
+            for (int i = 1; i < 90; ++i) {
+                for (int j = 1; j < 90; ++j) {
+                    const Vec3 wo = direction(double(i));
+                    const Vec3 wi = direction(double(j));
+                    const double correlated = smith.masking_shadowing(wo, wi, m);
+                    const double separable = smith.masking(wo, m) * smith.masking(wi, m);
+                    never_smaller = never_smaller && correlated >= separable;
+                    closest = std::fmin(closest, correlated - separable);
+                }
+            }
+        }
+        held = held && never_smaller;
+        std::printf("  %-22s %12s %11s %11.1e %8s   %s\n",
+                    "correlated >= separable", "32400 pairs", "closest", closest, "",
+                    never_smaller ? "holds" : "VIOLATED");
+    }
+
+    std::printf("\n  The last block is not a pass or a fail. The separable form is a\n"
+                "  real model that real renderers ship, and what the sheet can say\n"
+                "  about it is how much light it throws away at the edge of a rough\n"
+                "  object — a factor of 3.4 at alpha 1 and 85 degrees — and that it\n"
+                "  is never the larger of the two, which is a consequence of the\n"
+                "  correlation being positive and is checked rather than asserted.\n");
+
+    return held;
+}
+
     // Item 0068. Helmholtz reciprocity: light does not care which end of a
     // path it started from, so
     //
@@ -1785,6 +2084,7 @@ inline int verify() {
     all = sheet::lambert_and_a_mirror_vanish_in_the_furnace()            && all;
     all = sheet::every_density_integrates_to_one()                       && all;
     all = sheet::the_microfacet_distribution_covers_the_surface_it_models() && all;
+    all = sheet::the_masking_function_follows_from_the_distribution()       && all;
     all = sheet::every_bsdf_returns_the_same_value_swapped()             && all;
     all = sheet::no_non_finite_value_reaches_the_film()                  && all;
     all = sheet::no_instrument_catches_everything()                      && all;
