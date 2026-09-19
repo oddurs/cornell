@@ -101,6 +101,13 @@ jobs:
           # can see. The energy it loses is item 0086.
           ./cornell furnace --bsdf conductor --no-image
 
+          # And where the light it loses went. This one asserts the part that
+          # separates a wrong model from a broken program: the three states a
+          # draw can end in are exhaustive and sum to one, so nothing is
+          # unaccounted for. If that closure ever stops holding, the deficit
+          # has stopped being multiple scattering and started being a bug.
+          ./cornell furnace --table
+
           # And the chi-squared, which `verify` already runs in short form.
           # Run whole anyway: an instrument's own printing path is code, and
           # the short form does not exercise the pooling table or the power
