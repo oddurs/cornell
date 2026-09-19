@@ -214,6 +214,25 @@ consolation. The sampler agrees with its own density at every roughness from
 is the model, not the arithmetic, and three instruments that all failed
 together would not have been able to say so.
 
+`./cornell furnace --bsdf conductor` puts a rough metal of reflectance 1 in
+the furnace and reports what comes back. Mean radiance off the sphere, where
+1 is vanished:
+
+```
+      alpha    mean L on it     deficit
+      0.001        0.999998    -0.000002
+      0.050        0.991349    -0.008651
+      0.200        0.915234    -0.084766
+      0.600        0.631849    -0.368151
+      1.000        0.411050    -0.588950
+```
+
+At the smooth end it vanishes, because a mirror has no second facet to lose
+light to. At the rough end four tenths of the light comes back. Nothing was
+absorbed — the reflectance is 1 at every wavelength and every angle — so that
+is the model throwing energy away, and the number is what the instrument was
+built two milestones early to be able to print.
+
 Finding that with an instrument built two milestones before the model, rather
 than discovering it in a paper afterwards, is the single best thing this
 project can demonstrate. A check written after the thing it checks is a check

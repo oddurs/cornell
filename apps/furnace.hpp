@@ -233,6 +233,28 @@ struct Residual {
     // subtracting 0.9 from 1 keeps the absolute error and divides the value
     // by nine.
     double lowest_on_the_sphere = 1.0;
+
+    // And the same quantity averaged rather than minimised, which is the one
+    // a BSDF that can return a black sample needs.
+    //
+    // Lambert never does: every draw off an albedo-rho Lambertian in this
+    // scene returns exactly rho, so the minimum, the mean and the maximum are
+    // one number and `lowest_on_the_sphere` says everything. A microfacet
+    // surface draws facets whose mirror direction points into the ground, and
+    // those paths carry nothing — correctly, and `chi2.hpp` shows the density
+    // agrees — so the minimum over individual samples is 0.0 whatever the
+    // model does, and is not a measurement of anything.
+    //
+    // What the furnace is asking is how much light comes back, which is a
+    // mean. This is it, over every sample taken through every pixel whose
+    // centre is on the object.
+    double total_on_the_sphere = 0.0;
+    long samples_on_the_sphere = 0;
+
+    double mean_on_the_sphere() const {
+        return samples_on_the_sphere > 0
+             ? total_on_the_sphere / double(samples_on_the_sphere) : 0.0;
+    }
 };
 
 // Render it, and ask how far from 1 the radiance came back.
@@ -276,8 +298,12 @@ inline Residual measure(const Scene& scene, const Camera& camera,
                 for (int i = 0; i < spectral_samples; ++i) {
                     const double deviation = std::fabs(carried[i] - 1.0);
                     out.worst = std::fmax(out.worst, deviation);
-                    if (sphere) out.lowest_on_the_sphere =
-                        std::fmin(out.lowest_on_the_sphere, carried[i]);
+                    if (sphere) {
+                        out.lowest_on_the_sphere =
+                            std::fmin(out.lowest_on_the_sphere, carried[i]);
+                        out.total_on_the_sphere += carried[i];
+                        ++out.samples_on_the_sphere;
+                    }
                 }
                 sum += carried[0];
             }
@@ -291,14 +317,242 @@ inline Residual measure(const Scene& scene, const Camera& camera,
 
 // ── The instrument ───────────────────────────────────────────────────────
 
-inline int furnace(std::string_view model, double rho_asked, bool write_image) {
+// ── The rough conductor, which is what the instrument was built for ──────
+//
+// Item 0085. Four milestones ago this file said, in its opening, that v0.7's
+// microfacet model would not vanish. This is that sentence becoming a
+// measurement.
+//
+// The claim under test is the same one Lambert passes: a surface whose
+// reflectance is 1 at every wavelength and every angle, in an environment of
+// radiance 1, must return 1 in every direction. `FlatReflectance{1.0}` makes
+// the Fresnel term identically one, so nothing below is absorbed by the
+// material and anything missing is the *model* losing it.
+//
+// ── Reading the signature, which the item asked for in advance ───────────
+//
+// The item that scheduled this check named three signatures: uniformly too
+// dark is energy lost to multiple scattering, a dark rim at grazing is the
+// masking term, and too bright is the normalisation. Having now measured it,
+// the first two are less separable than that, and the reason is worth more
+// than the heuristic was.
+//
+// `chi2.hpp` derives what one draw of this estimator weighs:
+//
+//      f cos_i / pdf = F G₂ / G₁ = (1 + Lambda_o) / (1 + Lambda_o + Lambda_i)
+//
+// with `F` gone because it is 1. So the directional albedo is the mean of
+// that ratio, the deficit is one minus it, and every trend in the table below
+// falls out of that one expression rather than out of three rules of thumb.
+//
+// At low roughness both `Lambda`s are near zero except near grazing, so the
+// deficit appears at the rim first and nowhere else. At high roughness
+// `Lambda_i` is substantial in most directions and the deficit is everywhere
+// — but it is *smallest* at grazing, because `Lambda_o` grows without bound
+// there and a ratio whose numerator and denominator both contain a diverging
+// term tends to one. So a rough conductor's furnace image is darkest in the
+// middle and brightest at the edge, which is the opposite of the rim the item
+// expected, and it is not a masking bug. It is what a correct masking term
+// does when the light it masks is thrown away rather than followed.
+//
+// Nothing here is a failure of the code. It is the model, and `torrance_
+// sparrow.hpp` says in its own opening that it was written knowing this.
+inline int furnace_conductor(double alpha_asked, bool write_image) {
     using namespace furnace_detail;
     using namespace render;
 
+    std::printf("The white furnace, with a rough conductor in it.\n\n"
+                "Reflectance 1 at every wavelength and every angle, so the material\n"
+                "absorbs nothing and any light that does not come back was lost by the\n"
+                "model. A single-scattering microfacet BRDF drops the light that one\n"
+                "facet reflects into another, and this is how much.\n\n");
+
+    constexpr double roughnesses[] = {0.001, 0.010, 0.050, 0.100, 0.200,
+                                      0.400, 0.600, 0.800, 1.000};
+    constexpr double angles[] = {0.0, 60.0, 85.0};
+    constexpr int mu_cells = 512, phi_cells = 512;
+    constexpr int draws = 1 << 21;
+
+    int failures = 0;
+
+    // Roughness zero is not on the table and cannot be: at exactly zero the
+    // lobe is a delta, `trowbridge_reitz.hpp` returns nothing rather than a
+    // NaN, and the surface this file would measure is black. That is not a
+    // gap in the model — a surface with no roughness is a mirror, it is
+    // `specular.hpp`, and the Lambert furnace's third section already puts
+    // one in here and watches it vanish. The smooth end of this table is
+    // 0.001, which is a mirror to four decimal places and is measured as one.
+    if (alpha_asked == 0.0)
+        std::printf("   (--alpha 0 is a mirror, which is `specular.hpp` and which\n"
+                    "    `./cornell furnace` already vanishes. The table starts at\n"
+                    "    0.001, where this model is still one to six decimals.)\n\n");
+
+    std::printf("1. Directional albedo. Quadrature over `eval` on a %d x %d grid, and\n"
+                "   the estimator f cos / pdf over %d draws, side by side.\n\n",
+                mu_cells, phi_cells, draws);
+    std::printf("      alpha  %8s %8s  %8s %8s  %8s %8s\n",
+                "quad 0", "samp 0", "quad 60", "samp 60", "quad 85", "samp 85");
+
+    for (const double alpha : roughnesses) {
+        const Bsdf rough{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
+        std::printf("      %5.3f", alpha);
+
+        for (const double degrees : angles) {
+            const double theta = degrees * si::pi / 180.0;
+            const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+
+            const double by_quadrature =
+                directional_albedo_by_quadrature(rough, wo, mu_cells, phi_cells);
+            const double by_sampling = directional_albedo_by_sampling(rough, wo, draws);
+
+            // Too bright is the one signature that would be this file's
+            // problem rather than the model's, and it is checked at every
+            // roughness and every angle rather than left to the eye. A
+            // microfacet BRDF whose normalisation is wrong is too large
+            // everywhere by a constant, and no amount of lost energy can
+            // disguise that at the smooth end, where there is none.
+            if (by_sampling > 1.0 + 1e-6 || by_quadrature > 1.0 + 1e-6) ++failures;
+
+            // Four decimals, not six. The sampled column is an estimate and
+            // its standard error at this draw count is a few parts in ten
+            // thousand, so a fifth digit would be printing noise with the
+            // authority of a measurement.
+            std::printf("  %8.4f %8.4f", by_quadrature, by_sampling);
+        }
+        std::printf("\n");
+    }
+
+    // ── Which of the two columns to believe, and where ───────────────────
+    //
+    // They disagree badly at the top of the table and agree to five decimals
+    // from 0.1 down, and the one that is wrong is the quadrature. It is the
+    // same resolution wall `chi2.hpp` documents: a 512 by 512 grid over the
+    // hemisphere has cells about 0.004 wide in `mu`, and at roughness 0.001
+    // the lobe is two parts in a million of `mu`. The grid steps over it and
+    // reports almost nothing.
+    //
+    // The estimator has no such problem, because it draws from the lobe. So
+    // at the smooth end the sampled column is the measurement and the
+    // quadrature is an artefact, and in the middle of the table they agree,
+    // which is what licenses believing either.
+    //
+    // That is an inversion worth noticing. `furnace.hpp`'s opening calls the
+    // quadrature the strong form — it touches neither `sample` nor `pdf`, so
+    // it cannot be fooled by the two agreeing with each other about something
+    // false. That is still true, and it is not much use on a distribution the
+    // grid cannot see. Two instruments, each blind where the other sees.
+    {
+        const Bsdf smoothest{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{0.001}}};
+        const Vec3 up{0.0, 0.0, 1.0};
+        const double sampled = directional_albedo_by_sampling(smoothest, up, draws);
+
+        // The smooth end must lose nothing. A microfacet surface with no
+        // roughness is a mirror, a mirror in a furnace returns exactly what
+        // arrived, and this is the row that would catch a normalisation
+        // error before the energy loss had a chance to hide it.
+        const bool vanishes = std::fabs(sampled - 1.0) < 1e-4;
+        if (!vanishes) ++failures;
+
+        std::printf("\n   At roughness 0.001 the sampled albedo is %.6f, and it has to be:\n"
+                    "   a surface that smooth is a mirror, and a mirror loses nothing. %s\n",
+                    sampled, vanishes ? "It does." : "IT DOES NOT.");
+
+        // And the two columns have to meet where both can see. This is the
+        // furnace's second residual doing its original job — catching `sample`
+        // and `pdf` describing different distributions — on the first material
+        // in the project where they are not the same two lines of arithmetic.
+        double worst_disagreement = 0.0;
+        for (const double alpha : {0.200, 0.400, 0.600, 0.800, 1.000}) {
+            const Bsdf rough{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
+            for (const double degrees : angles) {
+                const double theta = degrees * si::pi / 180.0;
+                const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+                worst_disagreement = std::fmax(
+                    worst_disagreement,
+                    std::fabs(directional_albedo_by_quadrature(rough, wo, mu_cells, phi_cells)
+                            - directional_albedo_by_sampling(rough, wo, draws)));
+            }
+        }
+        const bool agree = worst_disagreement < 1e-3;
+        if (!agree) ++failures;
+
+        std::printf("   Where the grid can see the lobe, from 0.2 up, the two columns\n"
+                    "   agree to %.1e. %s\n", worst_disagreement,
+                    agree ? "`eval`, `sample` and `pdf` describe one surface."
+                          : "THEY DESCRIBE DIFFERENT SURFACES.");
+    }
+
+    // ── And the furnace itself ───────────────────────────────────────────
+
+    constexpr int resolution = 256;
+    constexpr int spp = 16;
+
+    const Camera camera = Camera::look_at(Vec3{0, 0, -5}, Vec3{0, 0, 0}, Vec3{0, 1, 0},
+                                          0.025, 0.025, 0.035);
+
+    std::printf("\n2. The furnace, rendered: %d x %d at %d spp, the ordinary integrator.\n\n",
+                resolution, resolution, spp);
+    std::printf("      alpha    pixels on the sphere    mean L on it     deficit\n");
+
+    std::vector<double> picture;
+    bool wrote_image = false;
+    for (const double alpha : roughnesses) {
+        const Bsdf rough{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{alpha}}};
+        const Scene scene = enclosure::uniform_environment(rough);
+        const Residual r = measure(scene, camera, resolution, spp, picture);
+
+        const double mean = r.mean_on_the_sphere();
+
+        // The object cannot return more than the environment put into it, and
+        // that is the one thing about this table that would be a defect here
+        // rather than in the model.
+        if (r.on_the_sphere == 0 || mean > 1.0 + 1e-3) ++failures;
+
+        std::printf("      %5.3f    %20ld    %12.6f    %+.6f\n",
+                    alpha, r.on_the_sphere, mean, mean - 1.0);
+
+        if (write_image && alpha == alpha_asked) {
+            std::vector<double> grey(picture.size() * 3);
+            for (std::size_t i = 0; i < picture.size(); ++i)
+                grey[i * 3 + 0] = grey[i * 3 + 1] = grey[i * 3 + 2] = picture[i];
+            wrote_image = write_ppm("furnace-conductor.ppm", resolution, resolution, grey);
+        }
+    }
+
+    if (wrote_image)
+        std::printf("\n   furnace-conductor.ppm   alpha = %.3f. The sphere is in it, darkest\n"
+                    "                            in the middle and brightest at the rim,\n"
+                    "                            which the note above the function explains.\n",
+                    alpha_asked);
+
+    std::printf("\n   Averaged, not minimised. A single path off this surface can carry\n"
+                "   nothing at all — it drew a facet reflecting into the ground — so the\n"
+                "   darkest sample is 0.0 at every roughness and measures nothing. The\n"
+                "   mean is what the furnace is asking about.\n");
+
+    std::printf("\n   The sphere does not vanish, and the number above is how much of it\n"
+                "   is there. That is item 0086, which is a bug in the model rather than\n"
+                "   in this program, and item 0087 is the decision about what to do.\n"
+                "\n   What this instrument asserts today is the part that would be this\n"
+                "   project's fault: that nothing is brighter than the light put in, that\n"
+                "   the smooth end loses nothing, and that the three ways of asking agree\n"
+                "   wherever they can all see. %s\n",
+                failures == 0 ? "They do." : "SOMETHING ABOVE DOES NOT HOLD.");
+
+    return failures == 0 ? 0 : 1;
+}
+
+inline int furnace(std::string_view model, double rho_asked, double alpha_asked,
+                   bool write_image) {
+    using namespace furnace_detail;
+    using namespace render;
+
+    if (model == "conductor") return furnace_conductor(alpha_asked, write_image);
+
     if (model != "lambert") {
         std::fprintf(stderr,
-                     "cornell: no BSDF called '%.*s'. There is one, and it is lambert.\n"
-                     "         fresnel.hpp arrives in v0.6 and is the one this test is for.\n",
+                     "cornell: no BSDF called '%.*s'. There are two: lambert, and\n"
+                     "         conductor, which takes --alpha and does not vanish.\n",
                      int(model.size()), model.data());
         return 1;
     }

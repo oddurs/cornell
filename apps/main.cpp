@@ -73,7 +73,8 @@ void print_witnesses() {
     std::printf("  ./cornell spectrum [d65|e|x|y|z|red-wall|green-wall|white-wall]\n");
     std::printf("  ./cornell spec\n");
     std::printf("  ./cornell verify\n"
-                "  ./cornell furnace [--bsdf lambert] [--rho R] [--no-image]\n"
+                "  ./cornell furnace [--bsdf lambert|conductor] [--rho R] [--alpha A]\n"
+                "                    [--no-image]\n"
                 "  ./cornell chi2\n"
                 "  ./cornell converge\n"
                 "  ./cornell replay x,y,sample [width]   one path, again, on one thread\n"
@@ -142,14 +143,16 @@ int main(int argc, char* argv[]) {
     if (command == "furnace") {
         std::string_view model{"lambert"};
         double rho = 1.0;
+        double alpha = 0.4;
         bool image = true;
         for (int i = 2; i < argc; ++i) {
             const std::string_view arg{argv[i]};
             if (arg == "--bsdf" && i + 1 < argc) model = argv[++i];
             else if (arg == "--rho" && i + 1 < argc) rho = std::atof(argv[++i]);
+            else if (arg == "--alpha" && i + 1 < argc) alpha = std::atof(argv[++i]);
             else if (arg == "--no-image") image = false;
         }
-        return app::furnace(model, rho, image);
+        return app::furnace(model, rho, alpha, image);
     }
 
     if (command == "spectrum") {

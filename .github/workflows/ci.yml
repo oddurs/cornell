@@ -93,6 +93,14 @@ jobs:
           # part of this instrument that touches a disk.
           ./cornell furnace --no-image
 
+          # And the same instrument pointed at the model it was built for.
+          # This one does not vanish, and it is not supposed to: what it
+          # asserts is the part that would be ours rather than the model's —
+          # nothing brighter than the light put in, nothing lost at the smooth
+          # end, and `eval`, `sample` and `pdf` agreeing wherever all three
+          # can see. The energy it loses is item 0086.
+          ./cornell furnace --bsdf conductor --no-image
+
           # And the chi-squared, which `verify` already runs in short form.
           # Run whole anyway: an instrument's own printing path is code, and
           # the short form does not exercise the pooling table or the power
