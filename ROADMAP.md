@@ -154,7 +154,7 @@ The thesis.
 
 ## v0.7 — Roughness
 
-`######····` 54% · 7 of 13 done
+`#######···` 62% · 8 of 13 done
 
 A surface is a landscape of tiny mirrors, and what it looks like is a statistical question about how they are oriented and how often they hide each other.
 
@@ -163,7 +163,6 @@ A surface is a landscape of tiny mirrors, and what it looks like is a statistica
 - [ ] [`0088`](https://github.com/oddurs/cornell/blob/main/cairn/items/0088-anisotropy-two-roughnesses-and-a-tangent-frame.md) Anisotropy: two roughnesses and a tangent frame <sup>optics · p2 · bsdf</sup>
 - [ ] [`0089`](https://github.com/oddurs/cornell/blob/main/cairn/items/0089-roughness-is-not-alpha-and-the-remapping-is-somebody-s-taste.md) Roughness is not alpha, and the remapping is somebody's taste <sup>optics · p2 · bsdf · admission</sup>
 - [ ] [`0090`](https://github.com/oddurs/cornell/blob/main/cairn/items/0090-prose-what-a-statistical-surface-is.md) Prose: what a statistical surface is <sup>prose · p2 · prose</sup>
-- [ ] [`0160`](https://github.com/oddurs/cornell/blob/main/cairn/items/0160-what-a-stochastic-bsdf-does-to-the-three-method-contract.md) What a stochastic BSDF does to the three-method contract <sup>spike · p0 · bsdf</sup>
 - [ ] [`0161`](https://github.com/oddurs/cornell/blob/main/cairn/items/0161-the-microsurface-as-a-place-a-ray-travels-through.md) The microsurface as a place a ray travels through <sup>optics · p0 · bsdf</sup>
 - [ ] [`0162`](https://github.com/oddurs/cornell/blob/main/cairn/items/0162-verify-the-rough-conductor-finally-vanishes.md) Verify: the rough conductor finally vanishes <sup>verify · p0 · verification</sup>
 
@@ -176,6 +175,7 @@ A surface is a landscape of tiny mirrors, and what it looks like is a statistica
 - [x] [`0086`](https://github.com/oddurs/cornell/blob/main/cairn/items/0086-it-does-not-vanish-the-missing-multiple-scattering-energy.md) It does not vanish: the missing multiple-scattering energy <sup>bug · p0 · bsdf</sup>
 - [x] [`0087`](https://github.com/oddurs/cornell/blob/main/cairn/items/0087-what-to-do-about-the-missing-energy.md) What to do about the missing energy <sup>spike · p0 · bsdf · admission</sup>
 - [x] [`0159`](https://github.com/oddurs/cornell/blob/main/cairn/items/0159-the-microfacet-section-says-things-the-sheet-does-not-print.md) The microfacet section says things the sheet does not print <sup>bug · p1 · verification</sup>
+- [x] [`0160`](https://github.com/oddurs/cornell/blob/main/cairn/items/0160-what-a-stochastic-bsdf-does-to-the-three-method-contract.md) What a stochastic BSDF does to the three-method contract <sup>spike · p0 · bsdf</sup>
 
 ## v0.8 — Both ends of the path
 

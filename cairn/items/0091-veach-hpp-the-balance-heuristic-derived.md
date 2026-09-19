@@ -7,7 +7,7 @@ milestone: v0.8
 labels:
 - derivation
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-19
 priority: p0
 area: transport
 effort: l
@@ -42,3 +42,13 @@ variance of each strategy in advance.
 
 - [ ] The unbiasedness argument is in the comment
 - [ ] Every strategy's pdf is the same `pdf()` the chi2 instrument tests
+
+## 2026-09-19
+
+From 0160, which decided how a stochastic BSDF fits the three-method contract: veach.hpp owns a rule with a silent failure mode, and the check for it belongs here rather than where it was discovered.
+
+The rule: every strategy must weight with the SAME density. Veach's condition for an unbiased combination is that the weights sum to one, not that they are correct - so a proxy density used consistently is unbiased and merely worse, while a proxy used on one side only is biased and looks like a slightly dark material.
+
+Measured, 2^25 samples over 1024 batches on a 1-D integral with two strategies: balance heuristic with true pdfs -1.0 sigma from truth; a proxy wrong by a factor of two used by both strategies +0.2 sigma, costing 1.1x the standard deviation; a hopeless proxy used by both +0.8 sigma, costing 1.8x the standard deviation, so 3.4x the samples; the same proxy used by one side only -814.7 sigma.
+
+This matters here because v0.7's multiple-scattering walk has no closed-form density and will hand MIS a proxy. A check shaped like the table above - a deliberately wrong proxy, applied consistently and then inconsistently, with the second one caught - is what stops that rule from being a comment.
