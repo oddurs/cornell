@@ -1260,6 +1260,94 @@ inline bool the_masking_function_follows_from_the_distribution() {
     return held;
 }
 
+    // Item 0162, and the sentence v0.7 was arranged to be able to say.
+    //
+    // `./cornell furnace --bsdf walk` measures this at length and CI runs it;
+    // this is the same claim on the sheet, because the sheet is where a
+    // reader looks for what the project asserts and a headline claim that
+    // lives only in another instrument is one they have to know to go and
+    // find.
+    //
+    // ── On what chi2 can no longer reach ─────────────────────────────────
+    //
+    // Item 0160 accepted that the chi-squared instrument loses this material:
+    // `sample` and `pdf` describe different distributions on purpose, so
+    // histogramming one against the other would report a difference that was
+    // designed in. That was the right call and it left a gap worth naming.
+    //
+    // The gap is narrower than it looked. The walk's first scattering event
+    // is pinned to the single-scattering model — the row below compares them
+    // — and that model *is* covered by chi2, at every roughness from 0.001
+    // up, in both the stretched and the direct frames. So what is unchecked
+    // by a sampling test is the walk's behaviour at orders two and above, and
+    // what checks that is energy: it cannot lose light and it cannot invent
+    // any, at any roughness, and the furnace says so exactly rather than
+    // statistically.
+inline bool a_rough_conductor_of_reflectance_one_vanishes() {
+    using namespace render;
+    using namespace furnace_detail;
+    bool held = true;
+
+    std::printf("\nA rough conductor of reflectance 1 vanishes, at every roughness.\n\n");
+    std::printf("  %-28s %12s %12s %11s\n",
+                "", "walk", "single", "recovered");
+
+    constexpr int draws = 1 << 19;
+
+    for (const double alpha : {0.1, 0.4, 1.0}) {
+        const TrowbridgeReitz distribution{alpha};
+        const Bsdf walked{GreyWalk{FlatReflectance{1.0}, distribution}};
+        const Bsdf single{GreyRough{FlatReflectance{1.0}, distribution}};
+
+        for (const double degrees : {0.0, 75.0}) {
+            const double theta = degrees * si::pi / 180.0;
+            const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+
+            const double by_walk = directional_albedo_by_sampling(walked, wo, draws);
+            const double by_single = directional_albedo_by_sampling(single, wo, draws);
+
+            // Exactly one, not nearly. Nothing is absorbed at any facet, so
+            // every walk carries the same weight and the estimate has no
+            // variance to converge.
+            const bool ok = by_walk == 1.0;
+            held = held && ok;
+
+            char label[64];
+            std::snprintf(label, sizeof label, "alpha %.1f, %2.0f degrees", alpha, degrees);
+            std::printf("  %-28s %12.10f %12.6f %11.6f   %s\n",
+                        label, by_walk, by_single, by_walk - by_single,
+                        ok ? "vanished" : "STILL THERE");
+        }
+    }
+
+    // The calibration, and it is the column beside it. The single-scattering
+    // model is the same surface with the light dropped instead of followed,
+    // and it is what this row would look like if the walk stopped after one
+    // bounce. Anything that made the walk agree with it would be a walk that
+    // was not walking.
+    {
+        const Bsdf single{GreyRough{FlatReflectance{1.0}, TrowbridgeReitz{1.0}}};
+        const double by_single = directional_albedo_by_sampling(single, Vec3{0, 0, 1}, draws);
+        const bool caught = std::fabs(by_single - 1.0) > 1e-2;
+        held = held && caught;
+
+        std::printf("  %-28s %12.10f %12s %11s   %s\n",
+                    "the same, light not followed", by_single, "", "",
+                    caught ? "caught" : "ESCAPED");
+    }
+
+    std::printf("\n  Compared with `==`, which an estimate rarely earns. At reflectance\n"
+                "  1 nothing is absorbed at any facet, so the weight never changes and\n"
+                "  every walk returns the same number; the mean of a constant is that\n"
+                "  constant, exactly. The recovered column is the light item 0086\n"
+                "  measured as lost.\n"
+                "\n  `./cornell furnace --bsdf walk --table` splits it by scattering\n"
+                "  order, which is the check with teeth: energy alone cannot see a walk\n"
+                "  that conserves it while going the wrong way.\n");
+
+    return held;
+}
+
     // Item 0068. Helmholtz reciprocity: light does not care which end of a
     // path it started from, so
     //
@@ -2085,6 +2173,7 @@ inline int verify() {
     all = sheet::every_density_integrates_to_one()                       && all;
     all = sheet::the_microfacet_distribution_covers_the_surface_it_models() && all;
     all = sheet::the_masking_function_follows_from_the_distribution()       && all;
+    all = sheet::a_rough_conductor_of_reflectance_one_vanishes()            && all;
     all = sheet::every_bsdf_returns_the_same_value_swapped()             && all;
     all = sheet::no_non_finite_value_reaches_the_film()                  && all;
     all = sheet::no_instrument_catches_everything()                      && all;
