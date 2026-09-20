@@ -294,6 +294,30 @@ The single-scattering column is still in the same table, still losing the
 energy it always did, which is what makes the gap between the two a
 measurement rather than a claim.
 
+Energy alone is the weaker half of that, and saying so matters. At a
+reflectance of 1 the weight never changes, so *any* walk that ends by leaving
+returns 1 — one that scattered in entirely wrong directions would pass. So
+`./cornell furnace --bsdf walk --table` splits the walk by how many times it
+scattered:
+
+```
+      alpha  theta    order 1   order 2  order 3+      total  single-scat
+      0.200      0   0.947607  0.033040  0.019353   1.000000     0.947414
+      0.600      0   0.591311  0.162785  0.245903   1.000000     0.591248
+      1.000      0   0.306484  0.189247  0.504269   1.000000     0.306840
+```
+
+Order 1 is what leaves after a single scattering event, and the last column is
+the same quantity computed from `D`, `G₂` and `G₁` in closed form with none of
+the walk's arithmetic in it. They agree to 5.6e-04. That is the check with
+teeth: the first draft of the walk conserved energy perfectly, matched at
+normal incidence, and was out by 0.216 here, because `Lambda` had lost its
+sign for rays travelling into the surface.
+
+And orders two and up come to 0.693516 at roughness 1 — which is what the
+single-scattering model was short of, to 5.6e-04. The light was never
+absorbed. It was dropped, and now it is followed.
+
 Finding that with an instrument built two milestones before the model, rather
 than discovering it in a paper afterwards, is the single best thing this
 project can demonstrate. A check written after the thing it checks is a check

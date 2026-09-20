@@ -113,6 +113,13 @@ jobs:
           # noisy estimate but an exact statement about one with no variance.
           ./cornell furnace --bsdf walk --no-image
 
+          # And the same walk split by scattering order, which is the check
+          # energy alone cannot make: the first-order share has to equal the
+          # single-scattering albedo, computed from a closed form with none of
+          # the walk's arithmetic in it. A walk that conserved energy while
+          # scattering the wrong way would fail here and nowhere else.
+          ./cornell furnace --bsdf walk --table
+
           # And the chi-squared, which `verify` already runs in short form.
           # Run whole anyway: an instrument's own printing path is code, and
           # the short form does not exercise the pooling table or the power

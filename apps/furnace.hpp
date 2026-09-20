@@ -490,6 +490,161 @@ inline int furnace_accounting() {
     return failures == 0 ? 0 : 1;
 }
 
+// ── The same accounting, after the light was followed ────────────────────
+//
+// Item 0162. `furnace_accounting` above splits a single scattering event into
+// escaped, masked and below, and shows that the last two are losses. This
+// splits a whole walk by how many times it scattered, and shows that they are
+// not losses any more — the light in them comes back at orders two and up.
+//
+// ── Why the order matters and the total does not ─────────────────────────
+//
+// The energy test is weak here, and saying so is the point of this section
+// existing rather than the furnace alone being deemed enough. At a
+// reflectance of 1 the weight never changes, so *any* walk that terminates by
+// leaving upward returns exactly 1. A walk that scattered into wrong
+// directions, or drew the wrong facet, or got the sign of `Lambda` backwards
+// — as the first draft of `multiple_scattering.hpp` did — conserves energy
+// perfectly and passes the furnace.
+//
+// Splitting by order catches what the total cannot. The share that leaves
+// after exactly one scattering event has to be the single-scattering albedo,
+// and `torrance_sparrow.hpp` computes that from a closed form built out of
+// `D`, `G₂` and `G₁` with none of this file's arithmetic in it. Two models,
+// one number, and they have to agree.
+//
+// That is the check that would have caught the sign: with it wrong the walk
+// still conserved energy exactly and its first-order share was out by 0.216
+// at roughness 1 and sixty degrees.
+inline int furnace_orders() {
+    using namespace furnace_detail;
+    using namespace render;
+
+    std::printf("Where the light goes, once it is followed.\n\n"
+                "The same walk, split by how many times it scattered before it left.\n"
+                "Order 1 is what a single-scattering model would have returned and the\n"
+                "rest is what that model was throwing away.\n\n");
+
+    constexpr double roughnesses[] = {0.050, 0.100, 0.200, 0.400,
+                                      0.600, 0.800, 1.000};
+    constexpr double angles[] = {0.0, 60.0, 85.0};
+    constexpr long draws = 1L << 21;
+
+    std::printf("      alpha  theta  %9s %9s %9s %10s  %11s\n",
+                "order 1", "order 2", "order 3+", "total", "single-scat");
+
+    int failures = 0;
+    double worst_total = 0.0;
+    double worst_against_single = 0.0;
+    double largest_recovered = 0.0;
+    double worst_against_deficit = 0.0;
+    double weakest_calibration = 1.0;
+
+    const Wavelengths lambdas = fixed_wavelengths();
+
+    for (const double alpha : roughnesses) {
+        const TrowbridgeReitz distribution{alpha};
+        const MultipleScattering<FlatReflectance> walk{FlatReflectance{1.0}, distribution};
+        const Bsdf single{GreyRough{FlatReflectance{1.0}, distribution}};
+
+        for (const double degrees : angles) {
+            const double theta = degrees * si::pi / 180.0;
+            const Vec3 wo{std::sin(theta), 0.0, std::cos(theta)};
+
+            double first = 0.0, second = 0.0, rest = 0.0;
+
+            for (long k = 0; k < draws; ++k) {
+                Sampler sampler{seed_accounting, std::uint64_t(k)};
+                const auto [u, v] = sampler.next2();
+
+                const auto walked = walk.walk(wo, lambdas, u, v);
+                if (walked.sample.is_black()) continue;
+
+                const double carried = walked.sample.weight[0];
+                if (walked.order == 1) first += carried;
+                else if (walked.order == 2) second += carried;
+                else rest += carried;
+            }
+
+            first /= double(draws);
+            second /= double(draws);
+            rest /= double(draws);
+
+            const double total = first + second + rest;
+            const double single_scattering =
+                directional_albedo_by_sampling(single, wo, 1 << 21);
+
+            // Nothing lost. With a reflectance of 1 this is exact rather than
+            // statistical: every walk returns the same number.
+            worst_total = std::fmax(worst_total, std::fabs(total - 1.0));
+
+            // And the sharp one. Two models, one number.
+            worst_against_single =
+                std::fmax(worst_against_single, std::fabs(first - single_scattering));
+
+            // The item's own sentence, as a number. Everything beyond the
+            // first scattering event is light the single-scattering model
+            // dropped, so it has to come to exactly what that model was
+            // short of.
+            const double recovered = second + rest;
+            const double was_missing = 1.0 - single_scattering;
+            largest_recovered = std::fmax(largest_recovered, recovered);
+            worst_against_deficit =
+                std::fmax(worst_against_deficit, std::fabs(recovered - was_missing));
+
+            // The calibration, and it costs nothing because it is the first
+            // column. A walk stopped after one scattering event *is* the
+            // single-scattering model, and its total is `first` rather than
+            // 1 — so if this section could not tell those apart, the distance
+            // between them is what it would be failing to see.
+            if (alpha >= 0.2)
+                weakest_calibration = std::fmin(weakest_calibration, 1.0 - first);
+
+            std::printf("      %5.3f  %5.0f  %9.6f %9.6f %9.6f %10.6f  %11.6f\n",
+                        alpha, degrees, first, second, rest, total, single_scattering);
+        }
+    }
+
+    if (!(worst_total < 1e-12)) ++failures;
+    if (!(worst_against_single < 3e-3)) ++failures;
+    if (!(worst_against_deficit < 3e-3)) ++failures;
+    if (!(weakest_calibration > 1e-2)) ++failures;
+
+    std::printf("\n   The total is 1 at every row, and %.1e is the worst it departs\n"
+                "   from it — not a small residual but none at all, because every walk\n"
+                "   returns the same number and the mean of a constant is exact.\n"
+                "\n   That is the furnace's claim and it is the weaker half: at a\n"
+                "   reflectance of 1 the weight never changes, so any walk that ends by\n"
+                "   leaving returns 1 whatever directions it went through on the way.\n",
+                worst_total);
+
+    std::printf("\n   The first column is the half with teeth. It is what leaves after a\n"
+                "   single scattering event, and `torrance_sparrow.hpp` computes the\n"
+                "   same quantity from D, G2 and G1 in closed form with none of the\n"
+                "   walk's arithmetic in it. They agree to %.1e, which is the noise of\n"
+                "   two estimators. A walk that conserved energy while scattering into\n"
+                "   the wrong directions would fail here and nowhere else — the first\n"
+                "   draft of the walk did exactly that, and was out by 0.216.\n",
+                worst_against_single);
+
+    std::printf("\n   Orders two and up come to as much as %.6f, and that is the light\n"
+                "   item 0086 accounted for as masked or reflected into the surface. It\n"
+                "   was never absorbed; it was dropped, and now it is followed. What it\n"
+                "   comes to and what the single-scattering model was short of differ by\n"
+                "   at most %.1e, which is the sentence this item was opened to be able\n"
+                "   to write.\n", largest_recovered, worst_against_deficit);
+
+    std::printf("\n   The calibration is the first column again, read as a failure: a\n"
+                "   walk stopped after one scattering event is the single-scattering\n"
+                "   model, and its total would be short of 1 by at least %.3f over the\n"
+                "   rows from roughness 0.2 up. That is the distance this section would\n"
+                "   be failing to see if it could not tell the two apart. %s\n",
+                weakest_calibration,
+                failures == 0 ? "It can." : "SOMETHING ABOVE DOES NOT HOLD.");
+
+    return failures == 0 ? 0 : 1;
+}
+
 // ── The rough conductor, which is what the instrument was built for ──────
 //
 // Item 0085. Four milestones ago this file said, in its opening, that v0.7's
@@ -784,8 +939,9 @@ inline int furnace(std::string_view model, double rho_asked, double alpha_asked,
     using namespace furnace_detail;
     using namespace render;
 
-    // Item 0086's reproduction, spelled the way that item spells it.
-    if (table) return furnace_accounting();
+    // Item 0086's reproduction, spelled the way that item spells it, and
+    // item 0162's, which is the same question asked after the repair.
+    if (table) return model == "walk" ? furnace_orders() : furnace_accounting();
 
     if (model == "conductor") return furnace_conductor(alpha_asked, write_image, false);
     if (model == "walk") return furnace_conductor(alpha_asked, write_image, true);

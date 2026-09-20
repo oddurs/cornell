@@ -199,8 +199,33 @@ public:
         return single_.pdf(wo, wi);
     }
 
+    // A walk and how many times it scattered.
+    //
+    // The order is not part of a `BsdfSample` and should not be: no material
+    // has one, the integrator has no use for it, and a field that exists for
+    // an instrument is a field every other material has to ignore. It is
+    // offered here the way `scene.hpp` offers an exhaustive intersection —
+    // the physics exposing a measurement of itself, rather than an instrument
+    // reaching in to take one.
+    //
+    // What it buys is the sharpest check this material has. The energy test
+    // at reflectance 1 cannot see a walk that scatters in the wrong
+    // directions, because any walk that terminates by leaving returns 1.
+    // Splitting by order can: the first-order share has to be the
+    // single-scattering albedo, which `torrance_sparrow.hpp` computes from a
+    // closed form that shares none of this arithmetic.
+    struct Walked {
+        BsdfSample sample;
+        int order = 0;      // scattering events before it left
+    };
+
     BsdfSample sample(const Vec3& wo, const Wavelengths& lambdas,
                       double u, double v) const {
+        return walk(wo, lambdas, u, v).sample;
+    }
+
+    Walked walk(const Vec3& wo, const Wavelengths& lambdas,
+                double u, double v) const {
         using namespace microsurface;
 
         const double side = wo.z < 0.0 ? -1.0 : 1.0;
@@ -227,13 +252,16 @@ public:
             // surface and so does this.
             if (std::isinf(height)) {
                 if (travelling.z <= 0.0) break;   // left downward: nothing to return
+                // `bounce` counts the scattering events that have happened,
+                // and the one about to be skipped has not, so a ray that got
+                // out after a single reflection reports 1.
 
                 BsdfSample out;
                 out.wi = Vec3{travelling.x * side, travelling.y * side,
                               travelling.z * side};
                 out.weight = carried;
                 out.kind = BsdfSample::Kind::Stochastic;
-                return out;
+                return Walked{out, bounce};
             }
 
             // The facet it met. `visible_normals.hpp` wants a direction
@@ -260,7 +288,7 @@ public:
         // Either it left downward or it exceeded a bound it should never
         // reach. Both are a sample that carries nothing, and the furnace is
         // where either would show.
-        return BsdfSample{};
+        return Walked{BsdfSample{}, 0};
     }
 
 private:
